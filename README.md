@@ -1,3 +1,7 @@
+<div align="center">
+  <img src='cover/cover.jpg' width="50%"/>
+</div>
+
 # PhD Thesis
 
 This repo contains my PhD thesis. The LaTeX is based on [this template](http://pletscher.org/blog/2013/03/11/thesis.html), but I modified classicthesis.sty somewhat to have (imo) nicer chapter headings. I also replaced Palatino with Times, as
