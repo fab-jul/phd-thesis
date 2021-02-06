@@ -1,0 +1,143 @@
+\pdfbookmark[1]{Abstract}{Abstract}
+\begingroup
+\let\clearpage\relax
+\let\cleardoublepage\relax
+\let\cleardoublepage\relax
+
+\chapter*{Abstract}
+
+In recent years, image compression with neural networks has received a lot of 
+attention. In this thesis, we present four algorithms for neural image compression,
+two for lossless compression, and two for lossy compression.
+
+We start by introducing the first practical learned lossless image compression
+system, which outperforms the popular lossless algorithms PNG, WebP, and
+\jpegk. It relies on a fully parallelizable hierarchical probabilistic model
+for adaptive entropy coding based on convolutional neural networks (CNNs), which we
+optimize end-to-end for the compression task. We show how this approach
+links to autoregressive generative models such as PixelCNN, and how it is
+orders of magnitudes faster, because it i) models the image distribution
+jointly with learned auxiliary representations instead of exclusively
+modeling the image distribution in RGB space, and ii) only requires three
+forward-passes to predict the probabilities of all pixels, instead of one
+for each pixel.  As a result, when sampling we obtain speedups of over two orders of
+magnitude compared to the fastest PixelCNN variant
+(Multiscale-PixelCNN). 
+
+The second lossless algorithm we show is built on top of the powerful \emph{lossy}
+image compression algorithm BPG, which outperforms the previously mentioned
+approach. %, as well as PNG, WebP, and \jpegk. %On one test set, we additionally
+%outperform the non-neural state-of-the-art lossless compression algorithm FLIF.
+In the presented approach, the original image is first decomposed into the
+lossy reconstruction obtained after compressing it with BPG and the
+corresponding residual.  We then model the distribution of the residual with a
+CNN-based probabilistic model that is conditioned on
+the BPG reconstruction, and combine it with entropy coding to losslessly encode
+the residual. Finally, the image is stored using the concatenation of the
+bitstreams produced by BPG and the learned residual coder. 
+
+We start the second part of the thesis by addressing one of the challenges of
+\emph{lossy} neural image compression: controlling the bitrate of the latent
+representing the image. We propose a new technique to
+navigate the rate-distortion trade-off for an compressive auto-encoder.  The
+main idea is to directly model the bitrate of the latent representation by
+using a ``context model'', a 3D-CNN which learns a conditional probability
+model of the latent distribution of the auto-encoder.  During training, the
+auto-encoder makes use of the context model to estimate the bitrate of its
+representation, and the context model is concurrently updated to learn the
+dependencies between the symbols in the latent representation, to better
+estimate the probability of the latent representation, and thus the bitrate.
+Our experiments show that this approach, when the reconstruction quality is
+measured with MS-SSIM, yields a state-of-the-art image compression system.
+
+For the final approach, we extensively study how to combine Generative
+Adversarial Networks and neural lossy compression to obtain a state-of-the-art
+generative lossy compression system. In particular, we investigate
+normalization layers, generator and discriminator architectures, training
+strategies, as well as perceptual losses. In contrast to previous work, i) we
+obtain visually pleasing reconstructions that are perceptually similar to the
+input, ii) we operate in a broad range of bitrates, and iii) our approach can
+be applied to high-resolution images. We bridge the gap between
+rate-distortion-perception theory and practice by evaluating our approach both
+quantitatively with various perceptual metrics, and with a user study. The
+study shows that our method is preferred to previous approaches even if they
+use more than $2{\times}$ the bitrate.
+
+%\vskip 5cm
+%
+\vfill
+
+\pagebreak
+
+\selectlanguage{ngerman}
+
+\pdfbookmark[1]{Zusammenfassung}{Zusammenfassung}
+\chapter*{Zusammenfassung}
+
+Bildkomprimierung mit neuronalen Netzen wird stetig populärer. In dieser
+Dissertation präsentieren wir vier Algorithmen für die neuronale
+Bildkomprimierung, zwei für verlustfreie Komprimierung und zwei für
+verlustbehaftete Komprimierung.
+
+Wir beginnen mit dem ersten praxistauglichen gelernten verlustfreien
+Komprimierungsalgorithmus, der die populären Algorithmen PNG, WebP, und \jpegk
+übertrifft. Der Algorithmus setzt auf ein komplett parallelisierbares
+hierarchisches Wahrscheinlichkeitsmodell, das wir für adaptives Arithmetic
+Coding verwenden. Das Model ist ein ``Convolutional Neural Network'' (CNN, zu
+dt. etwa ``neuronales Faltungsnetzwerk'') und wird end-to-end für die
+Komprimierung gelernt. Wir zeigen, wie dieser Ansatz mit autoregressiven
+generativen Modellen in Bezug steht, wie zum Beispiel PixelCNN, und wie unser
+Ansatz Grössenordnungen schneller ist, weil er i) die
+Wahrscheinlichkeitsverteilung von Bildern zusammen mit den gelernten
+Repräsentationen lernt, anstatt nur die Bildverteilung im RGB-Raum zu lernen,
+und ii) nur drei Forwardpasses durch das CNN benötigt, um die Verteilung von
+jedem Pixel anzugeben, anstatt einen Forwarpass pro Pixel. Dadurch erreichen
+wir ein bis zu zwei Grössenordnungen schnelleres Sampling als das schnellste
+PixelCNN (Multiscale-PixelCNN).
+
+Der zweite verlustfreie Algorithmus, den wir zeigen, übertrifft den ersten
+Algorithmus, indem er auf dem leistungsfähigen \emph{verlustbehafteten}
+Bildkomprimierungsalgorithmus BPG aufbaut. Der gezeigte Algorithmus teilt das
+Ursprungsbild in zwei Teile auf: erstens das Ergebnis von BPG, und zweitens das
+Residuum zwischen diesem Ergebnis und dem Ursprungsbild. Zusammen ergeben die
+zwei Teile das Ursprungsbild. Wir modellieren dann die
+Wahrscheinlichkeitsverteilung vom Residuum gegeben dem BPG-Ergebnis mit einem
+CNN, und kombinieren es wieder mit Arithmetic Coding, um das Residuum
+verlustfrei zu speichern. Indem wir auch das BPG-Ergebnis speichern, speichern
+wir das Ursprungsbild so verlustfrei.
+
+Der zweite Teil dieser Dissertation beginnt mit einer Arbeit, die eine der
+Herausforderungen im \emph{verlustfreien} Komprimieren behandelt, nämlich das
+Kontrollieren der Bitrate der Repräsentation des Bildes. Wir führen eine neue
+Methode ein, die es erlaubt, den Trade-off zwischen Bitrate und Veränderung
+des Ausgabebildes (engl. rate-distortion trade-off) mit einem Auto-encoder zu
+navigieren. Die Hauptidee ist es, direkt die Bitrate der Repräsentation mit
+einem ``Context-Modell'', zu modellieren, wofür wir ein 3D-CNN verwenden.
+Während dem Training benutzt der Auto-encoder das Context-Modell, um die
+Bitrate der Repräsentation abzuschätzen, und das Context-Modell lernt die
+Abhängigkeiten zwischen den Symbolen der Repräsentation, um deren
+Wahrscheinlichkeitsverteilung, und somit die Bitrate, besser abzuschätzen. Mit
+unseren Experimenten zeigen wir, dass unser Ansatz den State of the Art
+gemessen in MS-SSIM erreicht.
+
+Für den letzten Ansatz untersuchen wir im Detail, wie Generative Adversarial
+Networks (GANs) mit neuronaler verlustbehafteter Komprimierung kombiniert
+werden können, um ein State of the Art generatives Komprimierungssystem zu
+erhalten. Wir untersuchen Normalisierungsarten, Generator- und
+Discriminator-Architekturen, Trainingsstrategien, sowie Lossfunktionen, die die
+menschliche Wahrnehmung annähern. Im Gegensatz zu bisherigen Ansätzen i)
+erhalten wir visuell ansprechende Ausgangsbilder, die sehr nahe am Eingangsbild
+sind, ii) funktionieren wir in einem breiten Bereich von Bitrates, und iii)
+funktioniert unser Ansatz für hochaufgelöste Bilder. Wir schliessen die Lücke
+zwischen ``Rate-distortion-perception'' Theorie und Anwendung, indem wir
+unseren Ansatz sowohl quantitativ mit verschiedenen Metriken als auch mit einer
+Anwenderstudie evaluieren. Die Anwenderstudie zeigt, dass unser Ansatz
+vorherigen Ansätzen vorgezogen wird, selbst wenn diese mehr als zweimal so viel
+Bits benötigen.
+
+
+\selectlanguage{american}
+
+\endgroup
+
+\vfill

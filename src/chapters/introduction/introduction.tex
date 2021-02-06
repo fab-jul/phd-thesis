@@ -1,0 +1,171 @@
+\chapter{Introduction}
+\label{ch:intro}
+
+
+% Define block styles
+\tikzstyle{block} = [
+    rectangle, draw, 
+    minimum height=4em, text width=5em, text centered, rounded corners]
+\tikzstyle{smallblock} = [
+    rectangle, draw, 
+    minimum height=2em, minimum width=2em, text centered, rounded corners]
+\tikzstyle{noborder} = [align=center] %rectangle, draw, %fill=white!20, 
+    %text centered, minimum height=4em]
+\tikzstyle{line} = [draw, -latex]
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[align=center,node distance = 2cm]
+    \node [inner sep=0pt] (input) 
+        {\includegraphics[width=1.4cm]{\dir/ex.png}};
+    \node [noborder, below of=input, yshift=5ex] {$x$};
+    \node [draw, regular polygon, regular polygon sides=3, right of=input,
+        shape border rotate=-90, minimum width=2cm] (enc) {$E$};
+    \node [noborder, right of=enc] (y) {$y$};
+    \node [draw, regular polygon, regular polygon sides=3, right of=y,
+        shape border rotate=90, minimum width=2cm] (dec) {$D$};
+    \node [noborder, right of=dec] (output)
+        {\includegraphics[width=1.4cm]{\dir/ex.png}};
+    \node [noborder, below of=output, yshift=5ex] {$x'$};
+    \node [smallblock, draw, below of=y, yshift=.5em] (lossless) {Lossless Coding using $p(y)$};
+    \node [noborder, below of=lossless, yshift=2em] (bitstream)
+        {\dots\texttt{10111010}\dots};
+    \path [line] (input) -- (enc);
+    \path [line] (enc) -- (y);
+    \path [line] (y) -- (dec);
+    \path [line] (dec) -- (output);
+    \path [draw, latex-latex] (y) -- (lossless);
+    \path [draw, latex-latex] (lossless) -- (bitstream);
+\end{tikzpicture}
+\caption{\label{fig:lossyoverview}High-level schematic of the auto-encoder
+    structure commonly used in neural \emph{lossy} image compression.  The
+    image $x$ is fed through an encoder network $E$ to obtain the
+    representation $y$, which is written to disk losslessly using the learned
+probability distribution $p(y)$.  From $y$, we can obtain the reconstruction
+$x'$ using the decoder $D$.} \end{figure}
+
+
+In the time since the wide-spread adoption of smartphones with high-quality
+cameras, the number of images taken every year is increasing, having reached an
+estimated 1 trillion images in 2015~\cite{statisticaurl}.  Typical smartphone
+sensors today contain roughly 12 million pixels (\eg, the iPhone 12's
+cameras~\cite{iphone12url}).  In a standard setup, each pixel captures red,
+green, and blue intensities (RGB), and supports 256 possible values for each
+color, which can be represented with 8 bits per color, or 24 bits per pixel.
+Thus, an uncompressed 12 MP image would require roughly 36 megabytes to store.
+Since this is impractically large, image compression algorithms are employed.
+Instead of storing the raw value of each pixel of the camera sensor with 24
+bits, the image is converted to a more ``compressible'' representation first.
+We can broadly distinguish two categories: In \emph{lossless} image
+compression, the input image is reconstructed pixel-perfectly.  These
+algorithms exploit redundancy and other structures of images to reduce the
+number of bits needed to store the image (``bitrate'' for short).
+In \emph{lossy} image compression, the reconstructed image is allowed
+to be different from the input. Here, in addition to exploiting redundancy,
+approaches focus on trading off bitrate with how ``good'' the reconstruction
+is. This effectively means that the compression algorithm is allowed to throw
+away hard-to-compress structure or texture. Intuitively, the more bits, the closer
+the reconstruction can be to the input. This latter class of algorithms is what
+is in widespread use, a prominent example being JPEG~\cite{jpeg1992wallace}.
+However, lossless compression algorithms are also frequently used, \eg, in
+professional photography or medical imaging.
+
+Recently, deep neural networks have been employed for image compression.
+The idea is to formulate the image compression problem via a suitable loss function,
+and to parametrize the ``compression algorithm'' with a neural network. By training
+this neural network
+on a sufficiently large corpus of images we can obtain compression algorithms
+that outperform their non-learned predecessors. 
+
+The key questions that naturally arise are 
+i) which loss function to use, and ii) which neural network to use.
+While the first question has an obvious answer for lossless algorithms (the bitrate is all we can minimize, as pixel-perfect reconstruction is a hard requirement),
+it is non-obvious for lossy algorithms. Intuitively, we are looking for
+lossy image compression algorithms that only throw away parts of the image
+that a human observer does not notice, and that do not introduce any obvious 
+compression artifacts, \ie, we are looking for 
+a loss function that captures how humans perceive reconstructions. As an example,
+humans generally do not care if the leaves of a tree face slightly different directions
+in the reconstruction as long as the tree type, color, lighting, and so on are still the same. 
+If we had such a human-perception-based loss function, we could backpropagate through it to learn perfect
+compression algorithms. Alas, we do not have such a function, and recent
+efforts in neural lossy image compression have focused on approximating it.
+
+Regarding the second question, which neural network to use, the general structure
+on a high level is similar for many
+\emph{lossy} compression works, and shown in Fig.~\ref{fig:lossyoverview}: A
+representation $y$ of the image $x$ is learned by training a convolutional
+neural network (CNN)-based auto-encoder ($E$, $D$), and the representation $y$ is compressed
+by training a second neural network to approximate its probability distribution
+$p(y)$.  For \emph{lossless} compression works, fewer
+approaches exists, and they differ more significantly in structure, as we shall
+see later.
+
+In this thesis, we present neural network-based image compression approaches for
+both the lossless and the lossy regime.
+
+\section{Lossless Image Compression}
+
+Lossless image compression focuses on 
+leveraging redundancies in natural images to save bits.
+For example, PNG~\cite{pngurl} is based on simple autoregressive
+filters that update pixels based on surrounding pixels, allowing for efficient
+compression of, \eg, uniform image regions. There has been comparatively little
+work on using neural networks for lossless image compression specifically.
+However, the generative modelling literature is inherently related to the
+problem. There, the goal is to learn representations of images and to sample
+new images, both of which is achieved by learning probability models of real
+images. An example in this category is PixelCNN~\cite{van2016pixel}. Such a
+model can in theory be used for lossless compression, by pairing it with a
+entropy coding algorithm. After all (as we will also see in this thesis), all
+we need for lossless compression is a probability distribution of the data you
+are trying to compress, and an entropy coding algorithm that transforms data to
+a bitstream, using the distribution. 
+
+While such approaches can be used for lossless compression,
+state-of-the-art generative models rely on autoregressive factorizations and
+are too slow for the task.  We discuss this in \ref{part:one} of this thesis,
+where we present two approaches to neural network-based lossless image
+compression. The first approach (Ch.~\ref{ch:l3c}) learns a hierarchical
+auto-encoder that decomposes the input image into a sequence of ever smaller
+representations. We then use smaller representations to predict the probability
+distribution of bigger representations recursively. By training the network to
+minimize bitrate, we learn good models of the probability distributions, and are able to
+efficiently store images. In the second approach (Ch.~\ref{ch:rc}), we leverage
+the lossy image compression algorithm BPG for lossless compression, by learning
+the distribution of residuals with a neural network.
+
+\section{Lossy Image Compression}
+
+A well-known and widely-used lossy image compression algorithm is
+JPEG~\cite{jpeg1992wallace}, introduced in 1980. Since then, numerous
+alternatives have been proposed, including \jpegk~\cite{jpeg2000taubman},
+WebP~\cite{webpurl}, and, recently, BPG~\cite{bpg}, which is based on the
+state-of-the-art video codec HEVC~\cite{sullivan2012overview}. Around 2015,
+deep neural networks (DNNs) trained for image compression led to promising
+results~\cite{toderici2015variable, toderici2016full, theis2017lossy,
+balle2016end, agustsson2017soft, li2017learning}, achieving better performance
+than many traditional techniques for image compression. These approaches are
+directly minimizing the desired trade-off. Initial works focused on
+minimizing the ``rate-distortion'' trade-off $r+\lambda d$, where $d$ is a
+pairwise (between pairs of images) distortion metric (\eg, mean-squared error
+(MSE), or the Multi-Scale Structural Similarity Metric (MS-SSIM)) which
+measures how close is the reconstruction to the input. Later work also takes
+perceptual quality $d_V$ into
+account~\cite{agustsson2019extreme,blau2019rethinking}, which measures how
+``realistic'' the output looks, regardless of how close it is to the input, by
+measuring a divergence $d_V$ between the distribution $p_X$ of real images and
+the distribution of reconstructions $p_{\hat X}$, giving rise to the triple
+``rate-distortion-perception'' trade-off $r+\lambda d+\beta
+d_V$~\cite{blau2019rethinking}. Such a loss nicely approximates
+human preferences without requiring an exact mathematical expression for it.
+
+In \ref{part:two} we present two approaches for neural network-based lossy
+image compression. The first approach (Ch.~\ref{ch:imgcomp}) studies the
+rate-distortion setting, and focuses on minimizing the rate $R$ with a
+sophisticated entropy model. The goal is to model the distribution of the image
+representation, to be able to efficiently store that representation with
+entropy coding. The second approach (Ch.~\ref{ch:hific}) studies the
+rate-distortion-perception setting, and uses a GAN loss to improve the perceptual
+quality of reconstructions.
+

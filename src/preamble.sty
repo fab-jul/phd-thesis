@@ -1,0 +1,500 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% forprint boolean
+%
+% - When we print, we want to rotate big figures such that they cause a reader
+%   of the book to rotate the book. Also, we do not want to add the cover and
+%   backcover as this is done in the web GUI of lulu.
+% - When we don't print, we want to rotate the page for the PDF such that a reader
+%   can scroll through.
+%
+% Make sure to set this correctly!
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newboolean{forprint}
+\setboolean{forprint}{false}  % <-- set mode.
+
+
+% document options
+
+\newcommand{\myTitle}{Neural Image Compression: Lossy and Lossless Algorithms}
+\newcommand{\myTitleOnTitlePageLineOne}{Neural Image Compression:}
+\newcommand{\myTitleOnTitlePageLineTwo}{Lossy and Lossless Algorithms}
+\newcommand{\myName}{Fabian Julius Mentzer}
+\newcommand{\myProf}{Luc Van Gool}
+\newcommand{\myDepartment}{Department of Electrical engineering}
+\newcommand{\myUni}{\protect{ETH Z\"urich}}
+\newcommand{\myLocation}{Z\"urich}
+\newcommand{\myTime}{2021}
+
+
+
+% character encoding and languages
+\usepackage[american, ngerman]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+\usepackage{appendix}
+% math packages
+\usepackage{amsthm}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{bm}
+\usepackage{mathtools}
+
+
+\usepackage{chngcntr}
+\counterwithout{footnote}{chapter}
+
+
+% thesis style
+\usepackage[%
+    dottedtoc,
+    floatperchapter,
+    parts
+]{classicthesis}
+
+% define page size and margins for the final print
+\usepackage{geometry}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Page Size
+% This is Crown Quarto size, that can be used at lulu.com
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\geometry{
+    paperwidth=18.91cm,
+    paperheight=24.589cm,
+    bindingoffset=0.89cm, % gutter
+    inner=2cm, % inside margin
+    outer=4cm, % outside margin
+    vmargin=2.5cm, % top and bottom margins
+    marginparsep=0.6cm,
+    marginparwidth=3cm,
+    }
+
+% tables
+\usepackage{tabularx}
+\newcommand{\tableheadline}[1]{\multicolumn{1}{c}{\spacedlowsmallcaps{#1}}}
+
+% algorithms
+\usepackage[chapter]{algorithm}
+%\usepackage{algorithmic}
+
+% notation
+\usepackage{notation}
+
+% fixes for marginpar and latex
+\usepackage{mparhack}
+\usepackage{fixltx2e} 
+
+% indexing
+\usepackage{makeidx}
+\makeindex
+
+% graphics, figures, captions
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=newest}
+%\usetikzlibrary{external}
+\usetikzlibrary{calc}
+\usetikzlibrary{shapes,arrows}
+\usetikzlibrary{decorations.shapes}
+\usepackage{tkz-gm} % graphical models
+\usepackage{caption}
+\usepackage{subcaption}
+\captionsetup{format=plain}
+
+
+% table
+\usepackage{slashbox}
+\usepackage{rotating}
+\usepackage{multirow}
+
+% hyperref
+%\usepackage{bookmark,hyperref}
+\usepackage{hyperref}
+\hypersetup{%
+    %draft,	% = no hyperlinking at all (useful in b/w printouts)
+    colorlinks=true, linktocpage=true, pdfstartpage=1, pdfstartview=FitV,%
+    % uncomment the following line if you want to have black links (e.g., for printing)
+    %colorlinks=false, linktocpage=false, pdfborder={0 0 0}, pdfstartpage=1, pdfstartview=FitV,% 
+    breaklinks=true, pdfpagemode=UseNone, pageanchor=true, pdfpagemode=UseOutlines,%
+    plainpages=false, bookmarksnumbered, bookmarksopen=true, bookmarksopenlevel=1,%
+    hypertexnames=true, pdfhighlight=/O,%hyperfootnotes=true,%nesting=true,%frenchlinks,%
+    urlcolor=webbrown, linkcolor=RoyalBlue, citecolor=webgreen, %pagecolor=RoyalBlue,%
+    %urlcolor=Black, linkcolor=Black, citecolor=Black, %pagecolor=Black,%
+    pdftitle={\myTitle},%
+    pdfauthor={\myName, \myUni},%
+    pdfsubject={},%
+    pdfkeywords={},%
+}   
+\renewcommand{\subsectionautorefname}{Subsection}
+\renewcommand{\sectionautorefname}{Section}
+\renewcommand{\chapterautorefname}{Chapter}
+\def\algorithmautorefname{Algorithm}
+
+% bibliography
+%\usepackage{csquotes}
+\usepackage[%
+    style=numeric,%
+    %dashed=false,%
+    doi=false,%
+    isbn=false,%
+    hyperref=auto,%
+    backref,%
+    backrefstyle=three,%
+    maxbibnames=99,%
+    maxcitenames=2,
+]{biblatex}
+%\renewbibmacro{in:}{%
+%  \ifentrytype{article}{}{%
+%  \printtext{\bibstring{in}\intitlepunct}}}
+\bibliography{refs}
+
+% acronyms
+\PassOptionsToPackage{printonlyused,smaller}{acronym}
+\usepackage{acronym} % nice macros for handling all acronyms in the thesis
+\renewcommand{\bflabel}[1]{{#1}\hfill} % fix the list of acronyms
+
+% dummy counter for correct TOC etc
+\newcounter{dummy}
+
+% for cover page
+\usepackage{pdfpages}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Custom Packages
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%\usepackage[maxbibnames=1,maxcitenames=1]{biblatex}
+%\preto\fullcite{\AtNextCite{\defcounter{maxnames}{1}}}
+
+\usepackage{lipsum}
+
+%- L3C ------------------------------------------------------------------------%
+
+\usepackage{rotating}
+\usepackage{setspace}
+\usepackage{times}
+\usepackage{epsfig}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xspace}
+\usepackage{color}
+\usepackage{placeins}
+\usepackage{enumitem}
+\usepackage{xcolor,colortbl}
+
+%- ImgComp --------------------------------------------------------------------%
+
+\usepackage[noend]{algpseudocode}
+\usepackage{float}
+\newfloat{algorithm}{t}{lop}
+\floatname{algorithm}{Algorithm}
+
+
+%- HiFiC ----------------------------------------------------------------------%
+
+%\usepackage{url}            % simple URL typesetting
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xfrac} % slated fractions, sfrac
+
+
+\usepackage[percent]{overpic}
+\usepackage{tikz}
+\usepackage{tikz-3dplot}
+\usepackage{listings}
+\usepackage{blindtext}
+\usepackage{wrapfig}
+\usepackage{bm}
+\usepackage[export]{adjustbox}
+\usepackage{pdflscape}
+\usepackage{pdfpages}
+
+\usepackage{afterpage}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Custom Commands
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\appendixheader}{%
+    {\noindent \large \textsc{Appendices}%
+     \newline\vspace{1ex}\textcolor{halfgray}{\rule{\linewidth}{0.5pt}}}}
+\newenvironment{landscapefigure}{%
+  \ifthenelse{\boolean{forprint}}{%
+    \begin{sidewaysfigure}%
+  }{% ELSE
+    \begin{landscape}%
+    \begin{figure}%
+  }%
+}{% Closing
+  \ifthenelse{\boolean{forprint}}{%
+    \end{sidewaysfigure}%
+  }{% ELSE
+    \end{figure}%
+    \end{landscape}%
+  }%
+}
+
+\newcommand{\printornot}{\ifthenelse{\boolean{forprint}}{}{\textcolor{tablered}{PDF preprint}}}
+
+% Makes sure we layout the landscape figure after the current page. Otherwise
+% layout differences between print and non-print happen!
+\newcommand{\maybeafterpage}[1]{%
+    \ifthenelse{\boolean{forprint}}{%
+        #1%
+    }{%
+        \afterpage{#1}%
+}}
+
+\newcommand*{\eg}{\textit{e.g.}}
+\newcommand*{\ie}{\textit{i.e.}}
+\newcommand*{\etal}{\textit{et al.}\xspace}
+
+%- Background -----------------------------------------------------------------%
+
+\newtheoremstyle{fjtheorem} {2\topsep}{2\topsep}{}{}{}{}
+{ } % space after theorem head
+{\textbf{\thmnumber{#2 }\thmname{#1}}\thmnote{ \textit{(#3)}}}
+
+\theoremstyle{fjtheorem}
+\newtheorem{theorem}[chapter]{Theorem}
+
+\newcommand{\preal}{q}
+\newcommand{\pmodel}{p}
+\newcommand{\pimg}{\preal_\text{img}}
+\newcommand{\kl}{D_\text{KL}}
+
+%- L3C ------------------------------------------------------------------------%
+
+\newcommand\blfootnote[1]{%
+  \begingroup
+  \renewcommand\thefootnote{}\footnote{#1}%
+  \addtocounter{footnote}{-1}%
+  \endgroup
+}
+
+\definecolor{tablegreen}{rgb}{0.09, 0.45, 0.27}
+\definecolor{tablered}{rgb}{0.55, 0.0, 0.0}
+\definecolor{lightgray}{rgb}{0.33, 0.41, 0.47}
+\newcommand{\lossidx}{i}
+\newcommand{\lossparts}[1]{F^{(#1)}_\lossidx}
+\newcommand{\plog}{p_\text{mix}}
+\newcommand{\expectE}{\mathbb{E}}
+\newcommand{\expect}[1]{\expectE\left[#1\right]}
+\newcommand{\expectover}[2]{\mathbb{E}_{#1}\left[#2\right]}
+\newcommand{\Preal}{\tilde{p}}
+\newcommand{\zunquantized}{z'}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\levels}{\mathbb{L}}
+\newcommand{\level}{\ell}
+\newcommand{\sigmaq}{\sigma_q}
+\newcommand{\X}{\mathcal{X}}
+\newcommand{\nS}{{n_S}}
+\newcommand{\Bicubic}{\mathcal{B}}
+\newcommand{\prob}[1]{\text{Pr}\lbrack#1\rbrack}
+\newcommand{\sigmoid}{\text{sigmoid}}
+\newcommand{\fskip}[1]{f^{(#1)}_{\text{int}}}
+\newcommand{\fs}[1]{f^{(#1)}}
+%
+\newcommand{\rotated}[2]{{\multirow{#1}{*}{%
+    \fbox{\hphantom{1ex}\rotatebox[origin=c]{90}{%
+        \centering #2}}}}}
+
+\newcommand{\pmix}{p_m}
+\newcommand{\plogistic}{p_l}
+\newcommand{\slower}[2]{\textcolor{tablegreen}{$\times #1 \cdot 10^{#2}$}}
+\newcommand{\tablenote}[1]{$^{\textcolor{lightgray}{#1}}$}
+\newcommand{\deftablenote}[1]{$\textcolor{lightgray}{\small [#1]}$}
+
+\newcommand{\raisek}{RAISE-1k\xspace}
+\newcommand{\jpegk}{JPEG\kern0.2ex2000\xspace}
+
+\definecolor{Gray}{gray}{0.9}
+\newcommand{\cellh}[1]{\cellcolor{Gray}{#1}}
+%
+
+\setlength{\floatsep}{2ex minus 0.5ex}
+\setlength{\textfloatsep}{2ex minus 0.5ex}
+\setlength{\abovecaptionskip}{0.5ex minus 0.2ex}
+\setlength{\belowcaptionskip}{0.5ex minus 0.5ex}
+
+
+\makeatletter
+\renewcommand{\paragraph}{%
+  \@startsection{paragraph}{4}%
+  {\z@}{2ex \@plus 1.25ex \@minus .5ex}{-1em}%
+  {\normalfont\normalsize\bfseries}%
+}
+\makeatother
+
+\newcolumntype{P}[1]{>{\centering\arraybackslash}p{#1}}
+
+%- RC -------------------------------------------------------------------------%
+
+\definecolor{figureviolet}{rgb}{0.74, 0.33, 0.54}
+
+\newcommand{\ith}[1]{{(#1)}}
+\newcommand{\iith}{\ith{i}}
+%
+\newcommand{\rcpreal}{\tilde p}
+\newcommand{\rcpmodel}{p}
+\newcommand{\xl}{x_l}
+
+%- ImgComp --------------------------------------------------------------------%
+
+
+\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+
+%- HiFiC ----------------------------------------------------------------------%
+
+\newcommand{\lR}{\lambda}
+\newcommand{\lD}{\beta}
+\newcommand{\lP}{k_P}
+\newcommand{\lMSE}{k_M}
+
+\newcommand{\lRa}{\lR^{(a)}}
+\newcommand{\lRb}{\lR^{(b)}}
+\newcommand{\rtarget}{r_t}
+
+\newcommand{\numraters}{14}
+
+% Name
+\newcommand{\name}{HiFiC\xspace}
+\newcommand{\nameours}{\name (Ours)\xspace}
+\newcommand{\namelo}{HiFiC\textsuperscript{Lo}\xspace}
+\newcommand{\namemi}{HiFiC\textsuperscript{Mi}\xspace}
+\newcommand{\namehi}{HiFiC\textsuperscript{Hi}\xspace}
+\newcommand{\nameourslo}{HiFiC\textsuperscript{Lo} (Ours)\xspace}
+\newcommand{\nameoursmi}{HiFiC\textsuperscript{Mi} (Ours)\xspace}
+\newcommand{\nameourshi}{HiFiC\textsuperscript{Hi} (Ours)\xspace}
+\newcommand{\blmse}{Baseline MSE\xspace}
+\newcommand{\blmselpips}{Baseline (no GAN)\xspace}
+\newcommand{\blminnen}{M\&S Hyperprior\xspace}
+    
+% Name emph versions:
+\newcommand{\ename}{\emph{\name}\xspace}
+\newcommand{\enameours}{\emph{\nameours}\xspace}
+\newcommand{\enamelo}{\emph{\namelo}\xspace}
+\newcommand{\enamemi}{\emph{\namemi}\xspace}
+\newcommand{\enamehi}{\emph{\namehi}\xspace}
+\newcommand{\enameourslo}{\emph{\nameourslo}\xspace}
+\newcommand{\enameoursmi}{\emph{\nameoursmi}\xspace}
+\newcommand{\enameourshi}{\emph{\nameourshi}\xspace}
+\newcommand{\eblmse}{\emph{\blmse}\xspace}
+\newcommand{\eblmselpips}{\emph{\blmselpips}\xspace}
+\newcommand{\eblminnen}{\emph{\blminnen}\xspace}
+\newcommand{\million}[2]{$#1\,#200\,000$}
+
+% For tables
+\definecolor{nicegray}{gray}{0.95}
+\newcommand{\markgray}[1]{{\cellcolor{lightgray}{#1}}}
+
+\newcommand*\cubical[1]{
+% Axis, for debugging
+%\draw[thick,->] (0,0,0) -- (1,0,0) node[anchor=north east]{$x$};
+%\draw[thick,->] (0,0,0) -- (0,1,0) node[anchor=north west]{$y$};
+%\draw[thick,->] (0,0,0) -- (0,0,1) node[anchor=south]{$z$};
+% Label Axis
+\node at (2,0,-0.6) {$C$};
+\node at (4,2.1,-0.6) {$N$};
+\node[rotate=90] at (-0.55,0,1.75) {$H,W$};
+% Title
+\node (center) at (2,2,6.5) {#1};
+
+% Draw Cube
+\foreach \i in{0,...,4}
+{   
+  % Always x y z
+  \draw (0,0,\i) -- (4,0,\i);
+  \draw (\i,0,0) -- (\i,0,4);
+
+  % Draw right
+  \draw (4,\i, 0) -- (4, \i, 4);
+  \draw (4,0, \i) -- (4, 4, \i);
+
+  % Draw top
+  \draw (\i, 0,4) -- (\i, 4, 4);
+  \draw (0, \i,4) -- (4, \i, 4);
+}
+}
+
+\definecolor{normhighlight}{HTML}{B78DAD}
+
+\newcommand{\normcube}[2]{%
+\resizebox{0.175\textwidth}{!}{%
+\begin{tikzpicture}[tdplot_main_coords,scale=0.4]
+\draw[fill=normhighlight] #2;
+\cubical{#1}
+\end{tikzpicture}%
+}}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FOR VISUALS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Display a standalone crop with text
+% Args: relative width, method name, image path.
+\newcommand{\cropbpp}[3]{%
+\begin{subfigure}[b]{#1\textwidth}
+  \begin{tikzpicture}
+    \node[inner sep = 0pt] (a) {\includegraphics[width=1\linewidth]{#3}};
+    \node[fill=white,anchor=south west,inner sep=1pt,outer sep=0pt, minimum height=10pt,yshift=-0pt] at (a.south west) {#2};
+  \end{tikzpicture}
+\end{subfigure}}
+
+% method name, image, node name, node origin
+% optional argument goes to the crop node to, e.g., move it.
+\newcommand{\cropinside}[5][]{%
+    \node[draw=white!40, very thick, inner sep = 0pt,anchor=north east,outer sep=1pt,#1,yshift=-1.5pt] (#4) at (#5) {%
+        \includegraphics[width=0.2\linewidth]{#3}};
+    \node[fill=white,anchor=south west,inner sep=1pt,outer sep=1pt, minimum height=10pt,yshift=-0pt] at (#4.south west) {#2};}
+
+% Using a phantom superscript so that labels are aligned with e.g. HiFiC^Lo. 
+\newcommand{\fullshardlabel}[1]{\phantom{\textsuperscript L}#1\phantom{\textsuperscript L}}
+
+% Draw a split image view
+% Arguments:
+%  img1, img2 (ORIG), name, split lower coord, split higher coord, imagename
+%  optional argument goes to includegraphics of first image, e.g., to do crops
+\newcommand{\fullshardraw}[8][]{%
+    %%% Left image
+    \node[inner sep = 0pt,outer sep=0pt,anchor=south west] (image) at (0,0) {%
+            \includegraphics[width=1\linewidth,#1]{#2}};
+    %%% Create a relative scope to be able to use [0, 1].
+    \begin{scope}[x={(image.south east)},y={(image.north west)}]
+        %%% Imagename at top left
+        \def\temp{#7} \ifx\temp\empty %%% No node
+        \else \node[fill=white,anchor=north west,inner sep=1pt,outer sep=0pt, minimum height=10pt] at (0,1) {\fontsize{4}{5}{#7}};
+        \fi
+        %%% White split line
+        \draw[white, very thick, outer sep=2pt] (#5,0) -- (#6,1);
+        %%% Label left image
+        \node[fill=white,anchor=south east,inner sep=1pt,outer sep=0pt, minimum height=10pt, xshift=-5pt] at (#5,0) {\fullshardlabel{#4}};
+        %%% Draw right "shard"
+        \begin{scope}
+            %%% Clip following image
+            \clip (#5,0) -- (#6,1) -- (1,1) -- (1,0) -- cycle;
+            %%% Right image
+            \node[anchor=north east,inner sep=0pt, outer sep=0pt] at (1,1) {\includegraphics[width=1\linewidth]{#3}};
+        \end{scope}
+        %%% Right label
+        \node[fill=white,anchor=south west,inner sep=1pt,outer sep=0pt, minimum height=10pt, xshift=5pt] at (#5,0) {\fullshardlabel{Original}};
+        %%% Any remaining passed commands that should go within this relative scope
+        #8
+    \end{scope}}
+
+% Like \fullshardraw but creates subfigure around it. 
+% width (optional, defaults to 1), img1, img2 (ORIG), name, split lower coord, split higher coord, imagename
+\newcommand{\fullshard}[7][1]{%
+    \begin{subfigure}[b]{#1\textwidth}
+    \begin{tikzpicture}
+    \fullshardraw{#2}{#3}{#4}{#5}{#6}{#7}{}
+    \end{tikzpicture}
+    \end{subfigure}}
+    
+
+

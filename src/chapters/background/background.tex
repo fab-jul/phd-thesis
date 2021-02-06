@@ -1,0 +1,128 @@
+\chapter{Background} \label{ch:bac}
+
+\section{Rate Loss and Information Theory}
+
+One common theme of the four works we present in the following is that all
+algorithms eventually compress a stream of symbols $\bm s=(s_1, \dots, s_N)$
+\emph{losslessly}. In Ch.~\ref{ch:l3c}, we compress the RGB image and a set of
+auxiliary variables, in Ch.~\ref{ch:rc} we compress the RGB residual, and in
+Ch.~\ref{ch:imgcomp},~\ref{ch:hific}, we compress the latent variables.  To do
+this, we always approximate the real (unkown) distribution $\preal(\bm s)$
+of the symbols with a model $\pmodel(\bm s)$, and we use an entropy coding
+algorithm (adaptive arithmetic coding to be precise, see below) to encode the
+symbols to the bitstream.\footnote{We note that in the literature,
+\eg, in Cover \& Thomas~\cite{cover2012elements}, the real distribution is more
+commonly denoted with $p$, reserving $q$ for the model. We flip this notation as we are
+mainly interested in the model throughout the following chapters.} The underlying
+intuition from Information Theory is that the more we know about the
+distribution of the symbols, the more efficient we can compress them, by
+assigning shorter bit-sequences to more likely symbols. Doing this will yield
+short \emph{average} bitstreams.
+
+To minimize the number of bits we use, we always add a rate loss
+$\mathcal{L}_R$ to whatever objective we have. By minimizing $\mathcal{L}_R$, we minimize the bits needed to store $\bm s$, where
+\begin{equation} 
+    \mathcal{L}_R = \mathbb{E}_{\bm s \sim \preal}[-\log \pmodel(\bm s)]\label{bac:eq:loss}
+\end{equation}
+is a cross-entropy between the real distribution $\preal(\bm s)$ and the model $\pmodel(\bm s)$. 
+
+In this section, we want to briefly show how this loss can be derived using
+simple information theory tools. We want to highlight that we consider
+compressing the entire $\bm s$ \emph{at once}, instead of compressing its parts
+$s_i$. In contrast to what we usually see in Information Theory theorems, we do
+not model the $s_i$ as identically distributed. Instead, in our setup, the
+representations $\bm s^{(a)}, \bm s^{(b)}$ of different images $a, b$ are
+independent and identically distributed.
+
+We can model the symbol stream as a random variable
+$\bm S = (S_1, \dots, S_N)$, where each $S_i$ is also a random variable,
+that takes value in the finite set $\mathcal S$.
+We denote the (unknown) joint distribution with $\preal(\bm S)$, and
+the (unknown) distribution of individual symbols $S_i$ with $\preal_i(S_i)$.
+The symbols $\bm S$ have the following joint entropy:
+\begin{align}
+    H(q(\bm S)) = 
+        &H(q_1(S_1)) + H(q_2(S_2) | q_1(S_1)) + \dots +  \nonumber \\ 
+        &H(q_N(S_N) | q_1(S_1), \dots, q_{N-1}(S_{N-1}))
+\end{align}
+Note that we cannot simplify this further without making assumptions
+about $\preal(\bm S)$, and that $\preal(\bm S)$ specifies the probability of many
+possible symbol streams, as it specifies the probability for each possible 
+realization $\bm s$, and there are $|\mathcal{S}|^N$ such realizations.\footnote{For a typical compressive auto-encoder
+(\eg, Ballé \etal, 2018, ~\cite{balle2018variational}), and a moderately large image of $768{\times}512$
+pixels, $\bm s$ will have $N=768/8\cdot512/8\cdot192 = 1\,179\,648$ entries already.}
+We are interested in encoding realizations of $\bm S$ \emph{losslessly} into a bitstream, such that they can be recovered exactly.
+
+Let $L^\star$ be the expected minimum code length, as in 
+\cite[Theorem 5.4.1, p113]{cover2012elements}. 
+From that Theorem, we know that
+\begin{equation}
+    H(q(\bm S)) \leq L^\star < H(q(\bm S)) + 1. \label{bac:eq:bound}
+\end{equation}
+Note that here, we consider the whole stream $\bm S$, and $L^\star$ is the
+\emph{expected} minimum code length to encode one realization $\bm s$.  While
+this code length might be shorter than $H(\bm S)$ for one particular
+realization, the lemma says that we cannot go below the entropy in expectation.
+
+However, as mentioned, in general we do not know the real underlying
+distribution $\preal(\bm S)$. Instead, we introduce a model $\pmodel$ of $\preal$.
+Following~\cite[Theorem 5.4.3,
+p115]{cover2012elements},
+we know that using $\pmodel(\bm S)$ to encode a sequence $\bm S$ that is
+actually distributed according to $\preal(\bm S)$ incurs an overhead of
+\begin{equation}
+    \bar L = \kl(\preal(\bm S) , \pmodel(\bm S)) \text{ bits,} \label{bac:eq:overhead}
+\end{equation}
+and the overall expected code length $r$ becomes
+\begin{align}
+    r = L^\star + \bar L 
+            &< 1 + H(\preal(\bm S)) + \kl(\preal(\bm S ), \pmodel(\bm S)) \nonumber \\
+            &= 1 + \underbrace{\mathbb{E}_{\bm S \sim \preal}[-\log \pmodel(\bm S)]}_\textrm{cross-entropy}, \label{bac:eq:final_r}
+\end{align}
+which shows that we can in fact minimize $\mathcal L_R$ in Eq.~\ref{bac:eq:loss} to minimize the expected rate.
+
+In Ch.~\ref{ch:l3c},~\ref{ch:rc}, and~\ref{ch:hific}, we introduce a conditional independence assumption 
+into the model $\pmodel$. In particular, we decompose $\bm S$ into two parts, a side-information $\bm Z$, and the latents $\bm S'$, where 
+\begin{align*}
+    \pmodel(\bm S)=\pmodel(\bm S', \bm Z)=\pmodel(\bm Z) \pmodel(\bm S'|\bm Z) = 
+    \pmodel(\bm Z) \cdot \prod_i \pmodel_i(S'_i | \bm Z).
+\end{align*}
+We first encode $\bm Z$ using $\pmodel(\bm Z)$, and then encode the elements
+$S'_i$ of $\bm S'$ conditionally independent with their models $\pmodel_i(S'_i | \bm Z)$.
+We note that Eq.~\ref{bac:eq:final_r} still holds, but can be extended to
+\begin{align}
+    r < 1 + \mathbb{E}_{(\bm S', \bm Z) \sim \preal}[-\log \pmodel(\bm Z)]
+          + \mathbb{E}_{(\bm S', \bm Z) \sim \preal}[-\log \pmodel(\bm S' | \bm Z)],
+\end{align}
+where $q$ now represents the unknown joint distribution $q(\bm S', \bm Z)$.
+
+
+\section{Adaptive Arithmetic Coding} \label{bac:sec:aac}
+
+To actually encode a realization $\bm s$ into a bitstream, a so called
+``entropy coding algorithm'' can be used. The idea of these algorithms
+is to use a probability distribution model $p$ to efficiently encode
+symbols, since $p$ allows the coder to assign shorter bit-sequences
+to more likely symbols. Depending on the implementation,
+these algorithms may incur a non-negligible bit-overhead. For example, Huffman
+coding~\cite{huffman1952method} only achieves optimal rates for probabilities
+$\pmodel_i(S_i)$ that are powers of two. To allow more flexible models, we
+use adaptive arithmetic coding in all presented works.
+
+Adaptive Arithmetic Coding~\cite{witten1987arithmetic} is a strategy that almost
+achieves the theoretical rate bound from above (for long enough symbol streams).
+It encodes the entire stream into a single number $a' \in [0, 1)$, by
+subdividing $[0, 1)$ in each step (a step means encoding one symbol) as follows: Let $a, b$
+be the bounds of the current step (initialized to $a=0$ and $b=1$ for the
+initial interval $[0,1)$). We divide the interval $[a, b)$ into $|\mathcal S|$ sections
+where the length of the $j$-th section is $\pmodel_j(S_j) / (b-a)$
+(the algorithms is called \emph{adaptive} because it allows different $\pmodel_j$
+for different symbols).
+Then we pick the
+interval corresponding to the current symbol, \ie, we update $a, b$ to be the
+boundaries of this interval. We proceed recursively until no symbols are left.
+Finally, we transmit $a'$, which is $a$ rounded to the smallest number of bits
+s.t.\ $a' \ge a$. Receiving $a'$ together with the knowledge of the number of
+encoded symbols and $\pmodel$ uniquely specifies the stream and allows the
+receiver to recover the symbols perfectly.
+

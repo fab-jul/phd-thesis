@@ -1,0 +1,751 @@
+% TODO
+% can probably ditch Eq 7
+% and simplify more
+
+\chapter{Conditional Probability Models for Deep Image Compression} \label{ch:imgcomp}
+
+Deep Neural Networks trained as image auto-encoders have emerged as a
+promising direction for advancing the state-of-the-art in image compression.
+The key challenge in learning such networks is twofold: To deal with
+quantization, and to control the trade-off between the reconstruction error
+(distortion) and the bitrate of the latent image representation.  In this
+chapter, we focus on the latter challenge and propose a new technique to navigate
+the rate-distortion trade-off for an image compression auto-encoder.  The main
+idea is to directly model the distribution of the latent representation by using a
+context model: A 3D-CNN which learns a conditional probability model of the
+latent distribution of the auto-encoder.  During training, the auto-encoder
+makes use of the context model to estimate the bitrate of its representation,
+and the context model is concurrently updated to learn the dependencies between
+the symbols in the latent representation.  Our experiments show that this
+approach, when measured in MS-SSIM, yields a state-of-the-art image compression
+system based on a simple convolutional auto-encoder.
+
+%%%%%%%%% BODY TEXT
+\section{Overview}
+
+\begin{figure}
+\centering
+\includegraphics[width=0.75\linewidth]{\dir/figs/plots/mean_Kodak.pdf}
+\caption{State-of-the-art performance achieved by our simple compression system composed of a standard convolutional auto-encoder and a 3D-CNN-based context model.}
+\label{imgc:fig:mean_kodak}
+\end{figure}
+
+As introduced in Ch.~\ref{ch:intro},
+we would like to represent images with as little
+storage (\ie, bits) as possible.  While in the lossless image compression
+approaches shown in the previous chapters the compression rate is limited by
+the requirement that the original image should be perfectly reconstructible, in
+lossy image compression, a greater reduction in storage is enabled by allowing
+for some distortion $d$ in the reconstructed image. One way to view this is
+with the so-called rate-distortion trade-off, where a balance is found between
+the bitrate $r$ and the distortion $d$ by minimizing $d + \lambda r$, where
+$\lambda>0$ balances the two competing objectives.
+
+%Deep neural networks (DNNs) trained as image auto-encoders for image
+%compression task led to promising results, achieving better performance than
+%many traditional techniques for image compression \cite{toderici2015variable,
+%toderici2016full, theis2017lossy, balle2016end, agustsson2017soft,
+%li2017learning}. Another advantage of DNN-based learned compression systems is
+%their adaptability to specific target domains such as areal images or stereo
+%images, enabling even higher compression rates on these domains. 
+A key
+challenge in training deep neural networks for image compression is
+to optimize the bitrate $r$ of the latent
+image representation in the auto-encoder.  To encode the latent representation
+using a finite number of bits, it needs to be discretized into symbols (\ie,
+mapped to a stream of elements from some finite set of values).  Since
+discretization is non-differentiable, this presents  challenges for
+gradient-based optimization methods and many techniques have been proposed to
+address them.  
+%After discretization, the bitrate of the resulting symbols is given by the entropy of the symbols.
+As mentioned in Ch.~\ref{ch:bac}, the real
+distribution of the symbols is unknown, and so we introduce a model $p$ of the
+symbols.  In this chapter, we propose a way to learn such a model, and to thus
+navigate the the trade-off $d+\lambda r$ during optimization of the auto-encoder.
+
+Our proposed method is based on leveraging context models, which were
+previously used as techniques to improve coding rates for already-trained
+models \cite{balle2016end, toderici2016full,li2017learning,rippel17a}, directly
+as a rate term in the optimization. We concurrently train the auto-encoder
+and the context model with respect to each other, where the context model
+learns a convolutional probabilistic model of the image representation in the
+auto-encoder, while the auto-encoder uses it for bitrate estimation to navigate
+the rate-distortion trade-off.  Furthermore, we generalize our formulation to
+spatially-aware networks, which use an \textit{importance map} to spatially
+attend the bitrate representation to the most important regions in the
+compressed representation.  The proposed techniques lead to a simple image
+compression system, which achieves state-of-the-art performance when measured
+with the popular multi-scale structural similarity index (MS-SSIM) distortion
+metric \cite{SSIM-MS}, while being straightforward to implement with standard
+deep-learning
+toolboxes.\footnote{\url{https://github.com/fab-jul/imgcomp-cvpr}}
+
+\section{Related work}
+
+Full-resolution image compression using DNNs has attracted considerable
+attention. DNN architectures commonly used for image compression are
+auto-encoders~\cite{theis2017lossy, balle2016end, agustsson2017soft,
+li2017learning} and recurrent neural networks (RNNs)~\cite{toderici2015variable, toderici2016full}. The networks are typically
+trained to minimize the mean-squared error (MSE) between original and
+decompressed image~\cite{theis2017lossy, balle2016end, agustsson2017soft,
+li2017learning}, or using perceptual metrics such as MS-SSIM~\cite{toderici2016full, rippel17a}. Other notable techniques involve
+progressive encoding/decoding strategies~\cite{toderici2015variable,
+toderici2016full}, adversarial training~\cite{rippel17a}, multi-scale image
+decompositions~\cite{rippel17a}, and generalized divisive normalization (GDN)
+layers~\cite{balle2015density}.
+
+Context models and rate estimation---the focus of the present chapter---have
+a long history in the context of engineered compression methods, both lossless
+and lossy \cite{context1,context2,context3,context4,marpe2003context}.  Most of
+the recent DNN-based lossy image compression approaches have also employed such
+techniques in some form. Ballé \etal~\cite{balle2016end} use a binary context
+model for adaptive binary arithmetic coding~\cite{marpe2003context}.  The works
+of \cite{toderici2016full,li2017learning,rippel17a} use learned context models
+for improved coding performance on their trained models when using adaptive
+arithmetic coding. Theis~\etal~\cite{theis2017lossy} and
+Agustsson~\etal~\cite{agustsson2017soft} use non-adaptive arithmetic coding but
+estimate the rate term with an independence assumption on the symbols.
+
+Also related is the work of Van den Oord \etal~\cite{van2016pixel,
+van2016conditional}, who proposed PixelRNN and PixelCNN, powerful RNN- and
+CNN-based context models for modeling the distribution of natural images in a
+lossless setting, which can be used for (learned) lossless image compression as
+well as image generation. These works were introduced in Ch.~\ref{ch:rel:ll}.
+
+\section{Compressive Auto-encoder}
+
+We start by introducing the common compressive auto-encoder framework.  Given a
+set of training images $\mathcal{X}$, we wish to learn a compression system
+which consists of an encoder, a quantizer, and a decoder.  The encoder $E$ maps
+an image $x$ to a latent representation $z=E(x)$.  The quantizer $Q:\mathbb R \to
+\levels$ discretizes the elements of $z$ to $L=|\levels|$
+centers, obtaining $\hat z$ with $\hat{z}_i:=Q(z_i) \in \levels$, which
+can be losslessly encoded into a bitstream. 
+The decoder $D$ then forms the reconstructed image $\hat x=D(\hat z)$ from the quantized latent
+representation $\hat z$, by first (losslessy) decoding it from the
+bitstream.  We want the encoded representation $\hat z$ to be compact when
+measured in bits, while at the same time we want the distortion $d(x,\hat x)$ to be small, where $d$ is some measure of reconstruction error,
+such as MSE or MS-SSIM.  This results in the so-called rate-distortion
+trade-off
+\begin{equation}
+d(x,\hat x) + \lambda r(\hat z), \label{imgc:eq:rd_tradeoff}
+\end{equation}
+where $r(\hat z)$ denotes the cost of encoding $\hat z$ to bits. Our system is
+realized by modeling $E$ and $D$ as convolutional neural networks (CNNs) (more
+specifically, as the encoder and decoder, respectively, of a convolutional
+auto-encoder) and minimizing \eqref{imgc:eq:rd_tradeoff} over the training set
+$\mathcal{X}$, where a large/small $\lambda$ draws the system towards low/high
+average rate. 
+
+\section{Proposed method}
+
+In the next sections, we will discuss how we quantize $z$ and estimate the distribution of $\hat z$.
+We note that as $E,D$ are CNNs, $\hat z$ will be a 3D feature map, but for simplicity of exposition we will denote it as a vector with equally many elements. Thus, $\hat{z}_i$ refers to the $i$-th element of the feature map, in raster scan order (row by column by channel).
+
+
+\subsection{Quantization}\label{imgc:sec:quant}
+We use a scalar quantization approach based on the vector quantization approach proposed by Agustsson~\etal~\cite{agustsson2017soft} to quantize $z$, similar to what we 
+showed in Sec.~\ref{l3c:sec:quantization} but more general. 
+Specifically, given centers
+$\levels=\{\level_1,\cdots,\level_L\} \subset \mathbb R$, we use nearest neighbor
+assignments to compute
+\begin{equation} \label{imgc:eq:hardquant}
+    \hat{z}_i = Q(z_i) := \text{arg min}_{j} \|z_i-\level_j\|,
+\end{equation}
+but rely on (differentiable) soft quantization (like in Eq.~\ref{l3c:eq:softquant})
+\begin{equation} 
+\tilde z_i = \tilde Q(\zunquantized) = \sum_{j=1}^L  \level_j \, \frac{\exp(-\sigmaq\|\zunquantized-\level_j\|)}{\sum_{l=1}^L \exp(-\sigmaq\|\zunquantized-\level_l\|)} \label{imgc:eq:softquant}
+\end{equation}
+%\begin{equation} 
+%    \tilde{z}_i = \sum_{j=1}^L \frac{\exp(-\sigma\|z_i-\level_j\|)}{\sum_{l=1}^L \exp(-\sigma\|z_i-c_l\|)} \level_j
+%\label{imgc:eq:softquant}
+%\end{equation}
+to compute gradients during the backward pass. This combines the benefit
+of~\cite{agustsson2017soft} where the quantization is restricted to a finite
+set of learned centers $\levels$ (instead of the fixed (non-learned) integer
+grid as in~\cite{theis2017lossy}, or the fixed grid used in Ch.~\ref{ch:l3c})) and the simplicity of~\cite{theis2017lossy},
+where a differentiable approximation of quantization is only used in the
+backward pass, avoiding the need to choose an annealing strategy (\ie, a
+schedule for $\sigma$) as in~\cite{agustsson2017soft} to drive the soft
+quantization \eqref{imgc:eq:softquant} to hard assignments
+\eqref{imgc:eq:hardquant} during training.\footnote{In the time since this chapter appeared in CVPR `17, the field has moved away from learned centers. Indeed, \eg, Ballé \etal~\cite{balle2020nonlinear} argue that a sufficiently powerful encoder can learn to bend the encoder output space as needed, meaning that a fixed integer grid should be sufficient.}
+%In TensorFlow, this is implemented as 
+%\begin{equation}
+%\bar{z}_i = \text{tf.stopgradient}(\hat{z}_i-\tilde{z}_i) + \tilde{z}_i. \label{imgc:eq:qbar}
+%\end{equation}
+%We note that for forward pass computations, $\bar{z}_i=\hat{z}_i$, and thus we will continue writing $\hat{z}_i$ for the latent representation.
+
+\subsection{Entropy estimation}
+\label{imgc:sec:entropyest}
+
+
+To model the rate $r(\hat z)$ we follow the methodology introduced in Ch.~\ref{ch:bac}, and aim to approximate the real (unknown) distribution $\preal(\hat z)$ with 
+a model $\pmodel(\hat z)$. However, we do not introduce independence assumptions, instead, we
+build on the approach of PixelRNN~\cite{van2016pixel} and factorize the distribution $p(\hat z)$ as a product of conditional distributions
+\begin{equation}
+    p(\hat z) = \prod_{i=1}^{\text{dim}(z)} p(\hat{z}_i|\hat{z}_{i-1},\ldots,\hat{z}_1), \label{imgc:eq:condprob}
+\end{equation}
+where the 3D feature volume $\hat z$ is indexed in raster scan order. 
+We then use a neural network $P$, which we refer to as a \textit{context model}, to represent the terms $p(\hat{z}_i|\hat{z}_{i-1},\ldots,\hat{z}_1)$,
+\begin{equation}
+    P_{i,l}(\hat z) = p(\hat{z}_i=c_l|\hat{z}_{i-1},\ldots,\hat{z}_1), \quad l \in \{1,\ldots,L\}.
+\end{equation}
+where $P_{i,l}$ specifies for every 3D location $i$ in $\hat z$ the probabilities of the $l$-th symbol in $\levels$. 
+This means that for each 3D location $i$, we predict a $L$-dimensional vector, \ie, $P$ turns the $K{\times}H'{\times}W'$-dimensional $\hat z$ into a $K{\times}H'{\times}W'{\times}L$-dimensional prediction.
+
+Since the conditional distributions $p(\hat{z}_i|\hat{z}_{i-1},\ldots,\hat{z}_1)$ only depend on previous values $\hat{z}_{i-1},\ldots,\hat{z}_1$, this imposes a \textit{causality} constraint on the network $P$: While $P$ may compute $P_{i,l}$ in parallel for all $i$ and $l$, it needs to make sure that each such term only depends on previous values $\hat{z}_{i-1},\ldots,\hat{z}_1$.
+
+The authors of PixelCNN \cite{van2016pixel,van2016conditional} study the use of
+2D-CNNs as causal conditional models over 2D images in a lossless setting, \ie,
+treating the RGB pixels as symbols. They show that the causality constraint can
+be efficiently enforced using masked filters in the convolution. Intuitively,
+the idea is as follows: If for each layer the causality condition is satisfied
+with respect to the spatial coordinates of the layer before, then by induction
+the causality condition will hold between the output layer and the input.
+Satisfying the causality condition for each layer can be achieved with proper
+masking of its weight tensor, and thus the entire network can be made causal
+\textit{only through the masking of its weights}. 
+
+In our case, $\hat z$  is a 3D symbol volume, with as much as $K=64$ channels.
+We therefore generalize the approach of PixelCNN to 3D convolutions, using the
+same idea of masking the filters properly in every layer of the network.
+Thus, the entire set of
+probabilities $P_{i,l}$ for all (2D) spatial locations $i$ and symbol indices
+$l$ can be computed in parallel (when encoding) with a fully convolutional
+network, as opposed to obtaining each term
+$p(\hat{z}_i|\hat{z}_{i-1},\dots,\hat{z}_1)$ sequentually (which is still
+needed when decoding). 
+%In our case, $\hat z$  is a 3D symbol volume, with as much as $K=64$ channels.
+%We therefore generalize the approach of PixelCNN to 3D convolutions, using the
+%same idea of masking the filters properly in every layer of the network.  This
+%enables us to model $P$ efficiently, with a light-weight 3D-CNN which slides
+%over $\hat{z}$, while properly respecting the causality constraint. 
+The network $P$ is shown in Fig.~\ref{imgc:fig:archPC}, and we refer to
+Appendix~\ref{imgcomp:sec:app:probclf} for more details on the 3D-CNN.
+
+Following the description in Ch.~\ref{ch:bac}, we learn $P$ by minimizing the cross entropy between $\pmodel$ and the real (unknown) underlying distribution $\preal$, which, like in the previously described approaches, we achieve by drawing samples $x$ from the training set, and feeding them through the encoder $E$ to obtain $\hat z=E(x)$. To be more specific, we minimize
+\begin{align}
+    r(\hat z) 
+        %&= \mathbb{E}_{\hat z \sim E(x)}[-\log \pmodel(\hat z)]
+            %\label{imgc:eq:loss} \\
+        &= \sum_i - \log p(\hat z_i | \hat z_{i-1}, \dots, \hat z_1) .
+            \label{imgc:eq:loss}
+\end{align}
+%where the second equality makes use of our factorization~\eqref{imgc:eq:condprob}.
+
+To backpropagate through $P(\hat z)$ we use the same approach as for the
+quantization (see Sec.~\ref{imgc:sec:quant}): Like the decoder, $P$ only sees
+the (discrete) $\hat z$ in the forward pass, whereas the gradient of the soft
+quantization $\tilde z$ is used for the backward pass.
+
+\subsection{Concurrent optimization}
+Given an auto-encoder $(E,D)$, we can train $P$ to model the dependencies of the entries of $\hat z$ as described in the previous section by minimizing \eqref{imgc:eq:loss}. 
+On the other hand, using the model $P$, we can obtain an  estimate of $r(\hat z)$ and use this estimate to adjust $(E,D)$ such that $d(x,D(Q(E(x))))+\lambda r(\hat z)$ is reduced, thereby navigating the rate distortion trade-off. 
+Therefore, it is natural to concurrently learn $P$ (with respect to only~\ref{imgc:eq:loss}), and $(E,D)$  (with respect to the rate distortion trade-off) during training, such that all networks which the losses depend on are continuously updated.
+
+\subsection{Importance map for spatial bit-allocation}
+\label{imgc:sec:importancemap}
+Recall that since $E$ and $D$ are CNNs, $\hat z$ is a 3D feature-map.
+For example, if $E$ has three stride-2 convolution layers and the bottleneck
+has $K$ channels, the dimensions of $\hat z$ will be
+$\sfrac{W}{8}{\times}\sfrac{H}{8}{\times}K$. A consequence of this formulation is
+that we are using equally many symbols in $\hat z$ for each spatial location of
+the input image $x$. It is known, however, that in practice there is great
+variability in the information content across spatial locations (\eg, the
+uniform area of blue sky vs. the fine-grained structure of the leaves of a
+tree).
+
+This can in principle be accounted for automatically in the trade-off between
+the rate and the distortion, where the network would learn to output more
+predictable (\ie, low entropy, and thus low rate) symbols for the low information regions, while
+making room for the use of high entropy symbols for the more complex regions.
+More precisely, the formulation in \eqref{imgc:eq:loss} already allows for
+variable bit allocation for different spatial regions through the context model
+$P$.
+
+However, this arguably requires a quite sophisticated (and hence
+computationally expensive) context model, and we find it beneficial to follow
+Li \etal~\cite{li2017learning} instead by using an \textit{importance map} to
+help the CNN attend to different regions of the image with different amounts of
+bits.
+While~\cite{li2017learning} uses a separate network for this purpose, we
+consider a simplified setting. We take the last layer of the encoder $E$, and
+add a second single-channel output, thus predicting $K+1$ channels in total (see also the right of Fig.~\ref{imgc:fig:archAE}), where the
+last channel represents the $\sfrac{W}{8}{\times}\sfrac{H}{8}$-dimensional importance map $y$.
+We interpret the value $y_{i,j}$ as how many channels of $z$ at the spatial location $(i, j)$ we want to keep, and we ``zero out'' the rest. To be precise, we expand this single channel $y$ into a $\sfrac{W}{8}{\times}\sfrac{H}{8}{\times}K$-dimensional mask $m$ of the same dimensionality as $z$, where
+\begin{equation}
+m_{i,j,k} = \begin{cases}
+1  & \text{ if } k < y_{i,j}, \\
+(y_{i,j}-k)  & \text{ if }  k \leq y_{i,j} \leq k+1, \\
+0  & \text{ if } k+1 > y_{i,j}. \\
+\end{cases}\label{imgc:eq:expand_map}
+\end{equation}
+The transition value for $k \leq y_{i,j} \leq k+1$ (middle case) is such that the mask smoothly transitions from 0 to 1 for non-integer values of $y$.
+
+We then mask $z$ by pointwise multiplication with the binarization of $m$, \ie, $z \leftarrow z \odot \lceil m \rceil$.
+Since the ceiling operator $\lceil \cdot \rceil$ is not differentiable, we follow~\cite{theis2017lossy,li2017learning}, and use identity for the backward pass. 
+
+With this modification, we have simply changed the architecture of $E$ slightly
+such that it can easily ``zero out'' portions of columns $z_{i,j,:}$ of
+$z$ (the rest of the network stays the same, so that, \eg,
+quantization (Eq.~\eqref{imgc:eq:hardquant}) still holds).
+
+To help optimization leverage this path, we modify our loss.
+The idea is that the information of the image is contained in the non-masked-out 
+elements of $\hat z$, and that masking out more symbols should amount to a
+smaller rate. However, $P$ might need a few iterations to adapt to predict high
+probability (and thus use low bitrate) for masked elements. To efficiently steer
+optimization towards masking more channels (while keeping distortion $d$ low), we calculate a ``soft'' rate
+$\tilde r$, where we explicitly ignore masked out elements,  \ie:
+\begin{equation}
+    \tilde r(\hat z, m) = 
+        \sum_{i \notin I(m)} - \log p(\hat z_i | \hat z_{i-1}, \dots, \hat z_1) ,
+            \label{imgc:eq:soft_loss_sum}
+\end{equation}
+where $I(m)$ represents the indices of masked out elements, and gives explicit gradients to the mask.
+Note that the difference between Eqs.~\eqref{imgc:eq:soft_loss_sum} and~\eqref{imgc:eq:loss} is what we sum over.
+%This is implemented in a way such that we get gradients towards $m$. 
+
+We then define $r'$ as the average of the real rate $r$ and the soft rate $\tilde r$, \ie,
+\begin{equation}
+    r'(\hat z, \hat m) = \sfrac{1}{2} \left( r(\hat z) + \tilde r(\hat z, \hat m ) \right), \label{imgc:eq:softrate}
+\end{equation}
+and use $r'$ as our rate loss during training. This means we slightly underestimate the actual rate of our models during training, but find that in practice this only amounts to a ${\approx}3.5\%$ underestimation. The benefit of this scheme is that we learn to use the mask more efficiently.
+
+The architectural choice of applying the mask to $z$ and transmitting the masked $z$ means that when encoding an image, we can stick to standard adaptive arithmetic coding over the entire bottleneck, without needing to resort to a two-step coding process as in~\cite{li2017learning}, where the mask is first encoded, and then the remaining symbols are coded. We emphasize that this approach hinges critically on the context model $P$ and the encoder $E$ being trained concurrently as this allows the encoder to learn a meaningful (in terms of coding cost) mask with respect to $P$.
+
+While the importance map is not crucial for optimal rate-distortion performance, if the channel depth $K$ is adjusted carefully, we found that we could more easily control the bitrate of $\hat z$ through $\lambda$ when using a fixed $K$, since the network can easily learn to ignore some of the channels via the importance map.  
+%Furthermore, in the supplementary material we show that by using multiple importance maps for a single network, one can obtain a single model that supports multiple compression rates.
+
+\subsection{Putting the pieces together}
+
+Given the set of training images $\mathcal{X}$, we initialize (fully convolutional) CNNs $E$, $D$, and $P$, as well as the centers $\levels$ of the quantizer $Q$. 
+Then, we train over minibatches $\mathcal{X}_b=\{x^{(1)},\cdots,x^{(B)}\}$ of crops from $\mathcal{X}$.
+At each iteration, we take one gradient step for the auto-encoder $(E,D)$ and the quantizer $Q$, with respect to the rate-distortion trade-off
+\begin{equation}
+    \mathcal L_{E,D,Q} = \frac{1}{B}\sum_{b=1}^B d(x^{(b)},\hat x^{(b)})+\lambda r'(\hat z^{(b)}, \hat m^{(b)}),\label{imgc:eq:rd_loss}
+\end{equation}
+which is obtained by combining \eqref{imgc:eq:rd_tradeoff} with  \eqref{imgc:eq:softrate} and taking the batch sample average.
+Furthermore, we take a gradient step for the context model $P$ with respect to its objective,
+\begin{equation}
+\mathcal L_P := \frac{1}{B} \sum_{b=1}^B r'(\hat z^{(b)}, \hat m^{(b)}).
+\end{equation}
+
+To compute these two batch losses, we need to perform the following computation for each  $x\in\mathcal{X}_B$:
+\begin{enumerate}
+\setlength\itemsep{0.1em}
+\item Obtain compressed (latent) representation $z$ and importance map $y$ from the encoder: $(z,y) = E(x)$
+\item Expand importance map $y$ to mask $m$ via \eqref{imgc:eq:expand_map}
+\item Mask $z$, \ie, $z\leftarrow z \odot \lceil m \rceil$
+\item Quantize $\hat z=Q(z)$
+\item Compute the context $P(\hat z)$
+\item Decode $\hat x=D(\hat z)$,
+\end{enumerate}
+which can be computed in parallel over the minibatch on a GPU since all the models are fully convolutional.
+
+
+\subsection{Relationship to previous methods}
+We are not the first to use context models for adaptive arithmetic coding to improve the performance in learned deep image compression. Toderici \etal~\cite{toderici2016full} use a PixelRNN-like architecture~\cite{van2016pixel} to train a recurrent network as a context model for an RNN-based compression auto-encoder.
+Li~\etal~\cite{li2017learning} extract cuboid patches around each symbol in a binary feature map, and feed them to a convolutional context model.   
+Both these methods, however, only learn the context model \textit{after} training their system, as a post-processing step to boost coding performance. 
+
+In contrast, our method directly incorporates the context model as the rate for the rate-distortion term (Eq.~\eqref{imgc:eq:rd_tradeoff}) of the auto-encoder, and trains the two concurrently. This is done at little overhead during training, since we adopt a 3D-CNN for the context model, using PixelCNN-inspired \cite{van2016conditional} masking of the weights of each layer to ensure causality in the context model. 
+Adopting the same approach to the context models deployed by \cite{toderici2016full} or \cite{li2017learning} would be non-trivial since they are not designed for fast feed-forward computation.  In particular, while the context model of \cite{li2017learning} is also convolutional, its causality is enforced through masking the \textit{inputs} to the network, as opposed to our masking of the weights of the networks. This means their context model needs to be run separately with a proper input cuboid for each symbol in the volume (\ie, not fully convolutionally).
+
+% ------------------------------------------------------------------------------
+
+\section{Experiments}
+\label{imgc:sec:experiments}
+
+\paragraph{Architecture} Our auto-encoder has a similar architecture as~\cite{theis2017lossy} but with more layers, and is described in Fig.~\ref{imgc:fig:archAE}. We adapt the number of channels $K$ in the latent representation for different models.
+For the context model $P$, we use a simple $4$-layer 3D-CNN as described in Fig.~\ref{imgc:fig:archPC}. 
+
+\begin{figure}
+\centering
+\includegraphics[width=1.02\linewidth]{\dir/figs/archB_crop.pdf}
+\caption{The architecture of our auto-encoder. Dark gray blocks represent residual units. The upper part represents the encoder $E$, the lower part the decoder $D$. For the encoder, ``$\text{k}5\text{ n}64\text{-}2$'' represents a convolution layer with kernel size 5, 64 output channels and a stride of 2. For the decoder it represents the equivalent deconvolution layer. All convolution layers are normalized using batch norm~\cite{ioffe2015batch}, and use SAME padding. \textit{Masked quantization} is the quantization described in Section~\ref{imgc:sec:importancemap}. \textit{Normalize} normalizes the input to $[0, 1]$ using a mean and variance obtained from a subset of the training set. \textit{Denormalize} is the inverse operation.}
+\label{imgc:fig:archAE}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[width=0.6\linewidth]{\dir/figs/archPC.pdf}
+\caption{The architecture of our context model. ``$3D\text{ k}3\text{ n}24$'' refers to a 3D \textit{masked} convolution with filter size 3 and 24 output channels. The last layer outputs $L$ values for each voxel in $\hat z$.}
+\label{imgc:fig:archPC}
+\end{figure}
+
+\paragraph{Distortion measure} Following \cite{johnston2018improved, rippel17a}, we use the multi-scale structural similarity index (MS-SSIM)~\cite{SSIM-MS} as measure of distortion $d(x,\hat x)=100\cdot(1-\text{MS-SSIM}(x,\hat x))$ for our models. MS-SSIM reportedly correlates better with human perception of distortion than mean squared error (MSE). We train and test all our models using MS-SSIM.
+
+\paragraph{Training} We use the Adam optimizer~\cite{kingma2014adam} with a minibatch size of 30 to train seven models. Each model is trained to maximize MS-SSIM directly. As a baseline, we used a learning rate (LR) of $4 \cdot 10^{-3}$ for each model, but found it beneficial to vary it slightly for different models. We set $\sigma=1$ in the smooth approximation \eqref{imgc:eq:softquant} used for gradient backpropagation through $Q$. 
+To make the model more predictably land at a certain bitrate $t$ when optimizing \eqref{imgc:eq:rd_tradeoff}, we found it helpful to clip the rate term (\ie, replace $\lambda r$ with $\max(t,\lambda r)$), such that the it is ``switched off'' when it is below $t$. We found this did not hurt performance.
+We decay the learning rate by a factor 10 every two epochs. To obtain models for different bitrates, we adapt the target bitrate $t$ and the number of channels $K$, while using a moderately large $\lambda=10$. We use a small regularization on the weights and note that we achieve very stable training. We trained our models for 6 epochs, which took around 24h per model on a single GPU.
+For $P$, we use a LR of $10^{-4}$ and the same decay schedule.
+
+
+\paragraph{Datasets} We train on the the \textbf{ImageNet} dataset from the Large Scale Visual Recognition Challenge 2012 (ILSVRC2012)~\cite{ImageNet_ILSVRC15}. As a preprocessing step, we take random $160 \times 160$ crops, and randomly flip them. We set aside 100 images from ImageNet as a testing set, \mbox{\textbf{ImageNetTest}}. Furthermore, we test our method on the widely used \textbf{Kodak}~\cite{kodakurl} dataset. To asses performance on high-quality full-resolution images, we also test on the datasets \textbf{B100}~\cite{Timofte2014} and \textbf{Urban100}~\cite{Huang-CVPR-2015}, commonly used in super-resolution.
+\paragraph{Non-learned baseline codecs} We compare to JPEG~\cite{jpeg1992wallace}, using libjpeg~\cite{libjpegurl}, and \jpegk~\cite{jpeg2000taubman}, using the Kakadu implementation~\cite{kakaduurl}. We also compare to the BPG~\cite{bpg}, which is based on HEVC, the state-of-the-art in video compression, and which outperforms JPEG and \jpegk. We use BPG in the non-default 4:4:4 chroma format, following Rippel \& Bourdev~\cite{rippel17a}.
+
+\paragraph{Comparison} Like~\cite{rippel17a}, we proceed as follows to compare to other methods. For each dataset, we compress each image using all our models. This yields a set of (bpp, MS-SSIM) points for each image, which we interpolate to get a curve for each image. We fix a grid of bpp values, and average the curves for each image at each bpp grid value (ignoring those images whose bpp range does not include the grid value, \ie, we do not extrapolate). We do this for our method, BPG, JPEG, and \jpegk. 
+Due to code being unavailable for the related works in general, we digitize the Kodak curve from Rippel \& Bourdev \cite{rippel17a}, who have carefully collected the curves from the respective works.
+With this, we also show the results of Rippel \& Bourdev~\cite{rippel17a}, Johnston \etal~\cite{johnston2018improved}, Ballé \etal~\cite{balle2016end}, and Theis \etal~\cite{theis2017lossy}.  To validate that our estimated MS-SSIM is correctly implemented, we independently generated the BPG curves for Kodak and verified that they matched the one from \cite{rippel17a}.
+
+\begin{figure}
+%%\captionsetup{width=0.735\linewidth}
+\centering
+\setlength{\tabcolsep}{1pt}
+\begin{tabular}{ccc}
+    \includegraphics[width=0.32\textwidth]{\dir/figs/plots/mean_ImageNetVal.pdf}&
+    \includegraphics[width=0.32\textwidth]{\dir/figs/plots/mean_B100.pdf}&
+    \includegraphics[width=0.32\textwidth]{\dir/figs/plots/mean_Urban100.pdf}\\
+\end{tabular}
+\caption{Performance of our approach on ImageNetTest, B100, Urban100, where we outperform BPG, JPEG and \jpegk in MS-SSIM.}
+\label{imgc:fig:comp_imgnet_b100_u100}
+\end{figure}
+
+\paragraph{Results} Fig.~\ref{imgc:fig:mean_kodak} shows a comparison of the aforementioned methods for Kodak. Our method outperforms BPG, JPEG, and \jpegk, as well as the neural network based approaches of Johnston \etal~\cite{johnston2018improved}, Ballé \etal~\cite{balle2016end}, and Theis \etal~\cite{theis2017lossy}. Furthermore, we achieve performance comparable to that of Rippel \& Bourdev~\cite{rippel17a}. This holds for all bpps we tested, from 0.3 bpp to 0.9 bpp. We note that while Rippel \& Bourdev and Johnston \etal~also train to maximize (MS-)SSIM, the other methods minimize MSE.
+
+\begin{figure}
+\centering
+\begin{tabular}{lr}
+\textbf{Ours} 0.124bpp&
+0.147 bpp \textbf{BPG} \\
+\includegraphics[width=0.5\textwidth]{\dir/figs/fig_vis/low_1114_2037_71k/kodim21_itr0000071000_1_o_0_124.png}&
+\includegraphics[width=0.5\textwidth]{\dir/figs/fig_vis/low_1114_2037_71k/kodim21_itr0000071000_2_bpg_0_137.jpg}\\
+\includegraphics[width=0.5\textwidth]{\dir/figs/fig_vis/low_1114_2037_71k/kodim21_itr0000071000_2_jp2k_0_134.jpg}&
+\includegraphics[width=0.5\textwidth]{\dir/figs/fig_vis/low_1114_2037_71k/kodim21_itr0000071000_2_jp_0_160.jpg}\\
+\textbf{\jpegk} 0.134bpp&
+0.150bpp \textbf{JPEG}  \\
+\end{tabular}
+\caption{Example image (\textit{kodim21}) from the Kodak testing set, compressed with different methods.}
+\label{imgc:fig:kodim21}
+\end{figure}
+
+
+In each of the other testing sets, we also outperform BPG, JPEG, and \jpegk over the reported bitrates, as shown in Fig.~\ref{imgc:fig:comp_imgnet_b100_u100}. 
+
+In Fig.~\ref{imgc:fig:kodim21}, we compare our approach to BPG, JPEG, and \jpegk visually, using very strong compression on \textit{kodim21} from Kodak. It can be seen that the output of our network is pleasant to look at. Soft structures like the clouds are very well preserved. BPG appears to handle high frequencies better (see, \eg, the fence) but loses structure in the clouds and in the sea. Like \jpegk, it produces block artifacts. JPEG breaks down at this rate. We refer to Appendix~\ref{imgcomp:sec:app:visuals} for further visual examples.
+
+\paragraph{Ablation study: Context model} In order to show the effectiveness of the context model, we performed the following ablation study. We trained the auto-encoder without rate loss, \ie, $\lambda = 0$ in \eqref{imgc:eq:rd_loss}, using $L=6$ centers and $K=16$ channels. On Kodak, this model yields an average MS-SSIM of 0.982, at an average rate of 0.646 bpp (calculated assuming that we need $\log_2(L) = 2.59$ bits per symbol). We then trained three different context models for this auto-encoder, while keeping the auto-encoder fixed: A \textit{zeroth order} context model which uses a histogram to estimate the probability of each of the $L$ symbols; a \textit{first order} (one-step prediction) context model, which uses a conditional histogram to estimate the probability of each of the $L$ symbols given the previous symbol (scanning $\hat z$ in raster order); and $P$, \ie, our proposed context model. The resulting average rates are shown in Table~\ref{imgc:tab:ablationcm}. Our context model reduces the rate by 10 \%, even though the auto-encoder was optimized using a uniform prior. %(see supplementary material for a detailed comparison of Table~\ref{imgc:tab:ablationcm} and Fig.~\ref{imgc:fig:mean_kodak}).
+
+\begin{table}
+\centering
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{l l l}
+	Model & rate \\
+	\hline
+    Baseline (Uniform)    & 0.646 bpp \\
+    Zeroth order            & 0.642 bpp \\
+    First order           & 0.627 bpp \\
+    \hline
+    Our context model $P$ & 0.579 bpp 
+\end{tabular}
+\caption{\label{imgc:tab:ablationcm} Rates for different context models, for the same architecture $(E,D)$.}
+\end{table}
+\paragraph{Importance map} As described in detail in Section~\ref{imgc:sec:importancemap}, we use an importance map to dynamically alter the number of channels used at different spatial locations to encode an image. To visualize how this helps, we trained two auto-encoders $M$ and $M'$, where model $M$ uses an importance map and at most $K=32$ channels to compress an image, and model $M'$ compresses without importance map and with $K=16$ channels (this yields a rate for $M'$ similar to that of $M$). In Fig.~\ref{imgc:fig:vis_im},
+we show an image from ImageNetTest along with the same image compressed to 0.463 bpp by $M$ and compressed to 0.504 bpp by $M'$. Furthermore, Fig.~\ref{imgc:fig:vis_im} shows the importance map produced by $M$, as well as ordered visualizations of all channels of the latent representation for both $M$ and $M'$. Note how for $M$, channels with larger index are sparser, showing how the model can spatially adapt the number of channels. $M'$ uses all channels similarly.
+
+\begin{figure}
+\centering
+\begin{tabular}{cc}
+    Input & Importance map of $M$ \\
+    \includegraphics[width=0.5\linewidth]{\dir/figs/fig_hm/in.jpg}&
+    \includegraphics[width=0.5\linewidth]{\dir/figs/fig_hm/1113_1733_hm.png}\\
+     Output of $M$ & Latent representation of $M$ \\
+    \includegraphics[width=0.5\linewidth]{\dir/figs/fig_hm/1113_1733_hm_o_0_463.jpg}&
+    \includegraphics[width=0.5\linewidth]{\dir/figs/fig_hm/1113_1733_bn.png}\\
+     Output of $M'$ & Latent representation of $M'$ \\
+    \includegraphics[width=0.5\linewidth]{\dir/figs/fig_hm/1114_1328_nohm_o_0_504.jpg}&
+    \includegraphics[width=0.5\linewidth]{\dir/figs/fig_hm/1114_1328_bn.png}\\
+\end{tabular}
+\caption{Visualization of the latent representation of the auto-encoder for a high-bpp operating point, with (model $M$) and without (model $M'$) incorporating an importance map.}
+\label{imgc:fig:vis_im}
+\end{figure}
+
+\section{Discussion}
+
+Our experiments showed that combining a convolutional auto-encoder with a lightweight 3D-CNN as context model and training the two networks concurrently leads to a highly effective image compression system. Not only were we able to clearly outperform state-of-the-art engineered compression methods including BPG and \jpegk in terms of MS-SSIM, but we also obtained performance competitive with the current state-of-the-art learned compression method from \cite{rippel17a}. 
+In particular, our method outperforms BPG and \jpegk in MS-SSIM across four different testing sets (ImageNetTest, Kodak, B100, Urban100), and does so significantly, \ie, the proposed method generalizes well. 
+We emphasize that our method relies on elementary techniques both in terms of the architecture (standard convolutional auto-encoder with importance map, convolutional context model) and training procedure (minimize the rate-distortion trade-off and the negative log-likelihood for the context model), while \cite{rippel17a} uses highly specialized techniques such as a pyramidal decomposition architecture,
+adaptive codelength regularization, and multiscale adversarial training. 
+
+The ablation study for the context model showed that our 3D-CNN-based context model is significantly more powerful than the first order (histogram) and second order (one-step prediction) baseline context models. Further, our experiments suggest that the importance map learns to condensate the image information in a reduced number of channels of the latent representation without relying on explicit supervision. 
+Notably, the importance map is learned as a part of the image compression auto-encoder concurrently with the auto-encoder and the context model, without introducing any optimization difficulties. In contrast, in \cite{li2017learning} the importance map is computed using a separate network, learned together with the auto-encoder, while the context model is learned separately.
+
+\section{Conclusions}
+\label{imgc:sec:conclusions}
+In this chapter, we proposed the first method for learning a lossy image compression auto-encoder concurrently with a lightweight context model by incorporating it into a rate loss for the optimization of the auto-encoder, leading to performance competitive with the current state-of-the-art in deep image compression \cite{rippel17a}.
+
+Future works could explore heavier and more powerful context models, as those employed in \cite{van2016pixel,van2016conditional}. 
+This could further improve compression performance and allow for sampling of natural images in a ``lossy'' manner, by sampling $\hat z$ according to the context model and then decoding.
+
+\newpage
+
+\begin{subappendices} 
+
+\appendixheader
+
+\section{Visual examples} \label{imgcomp:sec:app:visuals}
+
+The following pages show the first two images of each of our validation sets compressed to low bitrate, together with outputs from BPG, \jpegk and JPEG compressed to similar bitrates. We ignored all header information for all considered methods when computing the bitrate (here and throughout the chapter).
+We note that the only header our approach requires is the size of the image and an identifier, \eg, $\lambda$, specifying the model.
+
+Overall, our images look pleasant to the eye. We see cases of over-blurring in our outputs, where BPG manages to keep high frequencies due to its more local approach. An example is the text in Fig.~\ref{imgc:fig:vis_ex_ImageNetTest_first}, top. On the other hand, BPG tends to discard low-contrast high frequencies where our approach keeps them in the output, like in the door in Fig.~\ref{imgc:fig:vis_ex_Kodak_first}, top. This may be explained by BPG being optimized for MSE as opposed to our approach being optimized for MS-SSIM.
+
+JPEG looks extremely blocky for most images due to the very low bitrate.
+
+
+\begin{figure*}[!h]
+%%%\captionsetup{width=0.807\linewidth}
+\centering
+\setlength{\tabcolsep}{1pt}
+\begin{tabular}{lr}
+    
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/1/kodim01_itr0000268000_1_o_0_239.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/1/kodim01_itr0000268000_2_bpg_0_246.jpg}\\[-0.5ex]
+\textbf{Ours} 0.239 bpp & 0.246 bpp \textbf{BPG} \\
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/1/kodim01_itr0000268000_2_jp2k_0_242.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/1/kodim01_itr0000268000_2_jp_0_259.jpg}\\
+\textbf{JPEG 2000} 0.242 bpp & 0.259 bpp \textbf{JPEG}
+\\[0.5cm]
+    
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/2/kodim02_itr0000268000_1_o_0_203.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/2/kodim02_itr0000268000_2_bpg_0_201.jpg}\\[-0.5ex]
+\textbf{Ours} 0.203 bpp & 0.201 bpp \textbf{BPG} \\
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/2/kodim02_itr0000268000_2_jp2k_0_197.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/2/kodim02_itr0000268000_2_jp_0_205.jpg}\\
+\textbf{JPEG 2000} 0.197 bpp & 0.205 bpp \textbf{JPEG}
+
+\end{tabular}
+\caption{\label{imgc:fig:vis_ex_Kodak_first}Our approach vs.\ BPG, JPEG and JPEG 2000 on the first and second image of the Kodak dataset, along with bit rate.}
+\end{figure*}
+
+%% \begin{figure*}[!h]
+%% %%\captionsetup{width=0.807\linewidth}
+%% \centering
+%% \setlength{\tabcolsep}{1pt}
+%% \begin{tabular}{lr}
+%%     
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/3/kodim03_itr0000268000_1_o_0_165.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/3/kodim03_itr0000268000_2_bpg_0_164.jpg}\\[-0.5ex]
+%% \textbf{Ours} 0.165 bpp & 0.164 bpp \textbf{BPG} \\
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/3/kodim03_itr0000268000_2_jp2k_0_166.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/3/kodim03_itr0000268000_2_jp_0_166.jpg}\\
+%% \textbf{JPEG 2000} 0.166 bpp & 0.166 bpp \textbf{JPEG}
+%% \\[0.5cm]
+%%     
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/4/kodim04_itr0000268000_1_o_0_193.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/4/kodim04_itr0000268000_2_bpg_0_209.jpg}\\[-0.5ex]
+%% \textbf{Ours} 0.193 bpp & 0.209 bpp \textbf{BPG} \\
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/4/kodim04_itr0000268000_2_jp2k_0_194.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/kodak/4/kodim04_itr0000268000_2_jp_0_203.jpg}\\
+%% \textbf{JPEG 2000} 0.194 bpp & 0.203 bpp \textbf{JPEG}
+%% 
+%% \end{tabular}
+%% \caption{\label{imgc:fig:vis_ex_Kodak_third}Our approach vs.\ BPG, JPEG and JPEG 2000 on the third and fourth image of the Kodak dataset, along with bit rate.}
+%% \end{figure*}
+
+\begin{figure*}[!h]
+%\captionsetup{width=0.807\linewidth}
+\centering
+\setlength{\tabcolsep}{1pt}
+\begin{tabular}{lr}
+    
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/1/img_001_SRF_4_HR_itr0000172000_1_o_0_385.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/1/img_001_SRF_4_HR_itr0000172000_2_bpg_0_394.jpg}\\[-0.5ex]
+\textbf{Ours} 0.385 bpp & 0.394 bpp \textbf{BPG} \\
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/1/img_001_SRF_4_HR_itr0000172000_2_jp2k_0_377.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/1/img_001_SRF_4_HR_itr0000172000_2_jp_0_386.jpg}\\
+\textbf{JPEG 2000} 0.377 bpp & 0.386 bpp \textbf{JPEG}
+\\[0.5cm]
+    
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/2/img_002_SRF_4_HR_itr0000172000_1_o_0_365.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/2/img_002_SRF_4_HR_itr0000172000_2_bpg_0_363.jpg}\\[-0.5ex]
+\textbf{Ours} 0.365 bpp & 0.363 bpp \textbf{BPG} \\
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/2/img_002_SRF_4_HR_itr0000172000_2_jp2k_0_363.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/2/img_002_SRF_4_HR_itr0000172000_2_jp_0_372.jpg}\\
+\textbf{JPEG 2000} 0.363 bpp & 0.372 bpp \textbf{JPEG}
+
+\end{tabular}
+\caption{\label{imgc:fig:vis_ex_Urban100_first}Our approach vs.\ BPG, JPEG and JPEG 2000 on the first and second image of the Urban100 dataset, along with bit rate.}
+\end{figure*}
+
+%% \begin{figure*}[!h]
+%% %\captionsetup{width=0.807\linewidth}
+%% \centering
+%% \setlength{\tabcolsep}{1pt}
+%% \begin{tabular}{lr}
+%%     
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/3/img_003_SRF_4_HR_itr0000172000_1_o_0_435.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/3/img_003_SRF_4_HR_itr0000172000_2_bpg_0_479.jpg}\\[-0.5ex]
+%% \textbf{Ours} 0.435 bpp & 0.479 bpp \textbf{BPG} \\
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/3/img_003_SRF_4_HR_itr0000172000_2_jp2k_0_437.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/3/img_003_SRF_4_HR_itr0000172000_2_jp_0_445.jpg}\\
+%% \textbf{JPEG 2000} 0.437 bpp & 0.445 bpp \textbf{JPEG}
+%% \\[0.5cm]
+%%     
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/4/img_004_SRF_4_HR_itr0000172000_1_o_0_345.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/4/img_004_SRF_4_HR_itr0000172000_2_bpg_0_377.jpg}\\[-0.5ex]
+%% \textbf{Ours} 0.345 bpp & 0.377 bpp \textbf{BPG} \\
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/4/img_004_SRF_4_HR_itr0000172000_2_jp2k_0_349.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/U100/4/img_004_SRF_4_HR_itr0000172000_2_jp_0_357.jpg}\\
+%% \textbf{JPEG 2000} 0.349 bpp & 0.357 bpp \textbf{JPEG}
+%% 
+%% \end{tabular}
+%% \caption{\label{imgc:fig:vis_ex_Urban100_third}Our approach vs.\ BPG, JPEG and JPEG 2000 on the third and fourth image of the Urban100 dataset, along with bit rate.}
+%% \end{figure*}
+
+\begin{figure*}[!h]
+%\captionsetup{width=0.807\linewidth}
+\centering
+\setlength{\tabcolsep}{1pt}
+\begin{tabular}{lr}
+    
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/1/img_0000000000_itr0000172000_1_o_0_355.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/1/img_0000000000_itr0000172000_2_bpg_0_394.jpg}\\[-0.5ex]
+\textbf{Ours} 0.355 bpp & 0.394 bpp \textbf{BPG} \\
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/1/img_0000000000_itr0000172000_2_jp2k_0_349.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/1/img_0000000000_itr0000172000_2_jp_0_378.jpg}\\
+\textbf{JPEG 2000} 0.349 bpp & 0.378 bpp \textbf{JPEG}
+\\[0.5cm]
+    
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/2/img_0000000026_itr0000172000_1_o_0_263.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/2/img_0000000026_itr0000172000_2_bpg_0_267.jpg}\\[-0.5ex]
+\textbf{Ours} 0.263 bpp & 0.267 bpp \textbf{BPG} \\
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/2/img_0000000026_itr0000172000_2_jp2k_0_254.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/2/img_0000000026_itr0000172000_2_jp_0_266.jpg}\\
+\textbf{JPEG 2000} 0.254 bpp & 0.266 bpp \textbf{JPEG}
+
+\end{tabular}
+\caption{\label{imgc:fig:vis_ex_ImageNetTest_first}Our approach vs.\ BPG, JPEG and JPEG 2000 on the first and second image of the ImageNetTest dataset, along with bit rate.}
+\end{figure*}
+
+%% \begin{figure*}[!h]
+%% %\captionsetup{width=0.807\linewidth}
+%% \centering
+%% \setlength{\tabcolsep}{1pt}
+%% \begin{tabular}{lr}
+%%     
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/3/img_0000000029_itr0000172000_1_o_0_284.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/3/img_0000000029_itr0000172000_2_bpg_0_280.jpg}\\[-0.5ex]
+%% \textbf{Ours} 0.284 bpp & 0.280 bpp \textbf{BPG} \\
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/3/img_0000000029_itr0000172000_2_jp2k_0_287.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/3/img_0000000029_itr0000172000_2_jp_0_288.jpg}\\
+%% \textbf{JPEG 2000} 0.287 bpp & 0.288 bpp \textbf{JPEG}
+%% \\[0.5cm]
+%%     
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/4/img_0000000045_itr0000172000_1_o_0_247.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/4/img_0000000045_itr0000172000_2_bpg_0_253.jpg}\\[-0.5ex]
+%% \textbf{Ours} 0.247 bpp & 0.253 bpp \textbf{BPG} \\
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/4/img_0000000045_itr0000172000_2_jp2k_0_243.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/rf100/4/img_0000000045_itr0000172000_2_jp_0_252.jpg}\\
+%% \textbf{JPEG 2000} 0.243 bpp & 0.252 bpp \textbf{JPEG}
+%% 
+%% \end{tabular}
+%% \caption{\label{imgc:fig:vis_ex_ImageNetTest_third}Our approach vs.\ BPG, JPEG and JPEG 2000 on the third and fourth image of the ImageNetTest dataset, along with bit rate.}
+%% \end{figure*}
+
+\begin{figure*}[!h]
+%\captionsetup{width=0.807\linewidth}
+\centering
+\setlength{\tabcolsep}{1pt}
+\begin{tabular}{lr}
+    
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/1/000_itr0000172000_1_o_0_494.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/1/000_itr0000172000_2_bpg_0_501.jpg}\\[-0.5ex]
+\textbf{Ours} 0.494 bpp & 0.501 bpp \textbf{BPG} \\
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/1/000_itr0000172000_2_jp2k_0_490.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/1/000_itr0000172000_2_jp_0_525.jpg}\\
+\textbf{JPEG 2000} 0.490 bpp & 0.525 bpp \textbf{JPEG}
+\\[0.5cm]
+    
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/2/001_itr0000172000_1_o_0_298.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/2/001_itr0000172000_2_bpg_0_301.jpg}\\[-0.5ex]
+\textbf{Ours} 0.298 bpp & 0.301 bpp \textbf{BPG} \\
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/2/001_itr0000172000_2_jp2k_0_293.jpg}&
+\includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/2/001_itr0000172000_2_jp_0_315.jpg}\\
+\textbf{JPEG 2000} 0.293 bpp & 0.315 bpp \textbf{JPEG}
+
+\end{tabular}
+\caption{\label{imgc:fig:vis_ex_B100_first}Our approach vs.\ BPG, JPEG and JPEG 2000 on the first and second image of the B100 dataset, along with bit rate.}
+\end{figure*}
+
+\FloatBarrier
+\newpage
+
+%% \begin{figure*}[!h]
+%% %\captionsetup{width=0.807\linewidth}
+%% \centering
+%% \setlength{\tabcolsep}{1pt}
+%% \begin{tabular}{lr}
+%%     
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/3/002_itr0000172000_1_o_0_315.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/3/002_itr0000172000_2_bpg_0_329.jpg}\\[-0.5ex]
+%% \textbf{Ours} 0.315 bpp & 0.329 bpp \textbf{BPG} \\
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/3/002_itr0000172000_2_jp2k_0_311.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/3/002_itr0000172000_2_jp_0_321.jpg}\\
+%% \textbf{JPEG 2000} 0.311 bpp & 0.321 bpp \textbf{JPEG}
+%% \\[0.5cm]
+%%     
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/4/003_itr0000172000_1_o_0_363.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/4/003_itr0000172000_2_bpg_0_397.jpg}\\[-0.5ex]
+%% \textbf{Ours} 0.363 bpp & 0.397 bpp \textbf{BPG} \\
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/4/003_itr0000172000_2_jp2k_0_369.jpg}&
+%% \includegraphics[width=0.4\textwidth]{\dir/figs/suppl/B100/4/003_itr0000172000_2_jp_0_372.jpg}\\
+%% \textbf{JPEG 2000} 0.369 bpp & 0.372 bpp \textbf{JPEG}
+%% 
+%% \end{tabular}
+%% \caption{\label{imgc:fig:vis_ex_B100_third}Our approach vs.\ BPG, JPEG and JPEG 2000 on the third and fourth image of the B100 dataset, along with bit rate.}
+%% \end{figure*}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.7\linewidth]{\dir/figs/fig_vis/conv.pdf}
+\caption{2D vs.\ 3D CNNs}
+\label{imgc:fig:conv_2dvs3d}
+\end{figure}
+
+\section{3D probability classifier} \label{imgcomp:sec:app:probclf}
+
+As mentioned in Section~\ref{imgc:sec:entropyest}, we rely on masked 3D convolutions to enforce the causality constraint in our probability classifier $P$. In a 2D-CNN, standard 2D convolutions are used in filter banks, as shown in Fig.~\ref{imgc:fig:conv_2dvs3d} on the left: A $W \times H \times C_\text{in}$-dimensional tensor is mapped to a $W' \times H' \times C_\text{out}$-dimensional tensor using $C_\text{out}$ banks of $C_\text{in}$ 2D filters, \ie, filters can be represented as $f_W \times f_H \times C_\text{in} \times C_\text{out}$-dimensional tensors. Note that all $C_\text{in}$ channels are used together, which violates causality: When we encode, we proceed channel by channel.
+
+Using 3D convolutions, a depth dimension $D$ is introduced. In a 3D-CNN, $W \times H \times D \times C_\text{in}$-dimensional tensors are mapped to $W' \times H' \times D' \times C_\text{out}$-dimensional tensors, with $f_W \times f_H \times f_D \times C_\text{in} \times C_\text{out}$-dimensional filters. Thus, a 3D-CNN slides over the depth dimension, as shown in Fig.~\ref{imgc:fig:conv_2dvs3d} on the right. We use such a 3D-CNN for $P$, where we use as input our $W \times H \times K$-dimensional feature map $\hat z$, using $D=K, C_\text{in} = 1$ for the first layer.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.75\linewidth]{\dir/figs/fig_vis/masks.pdf}
+\caption{Left shows a grid of symbols $\hat z_i$, where the black square denotes some context and the gray cells denote symbols which where previously encoded. Right shows masks.}
+\label{imgc:fig:masks}
+\end{figure}
+
+To explain how we mask the filters in $P$, consider the 2D case in Fig.~\ref{imgc:fig:masks}. We want to encode all values $\hat z_i$ by iterating in raster scan order and by computing $p(\hat z_i|\hat z_{i-1}, \dots, \hat z_1)$. We simplify this by instead of relying on all previously encoded symbols, we use some $c \times c$-context around $\hat z_i$ (black square in Fig.~\ref{imgc:fig:masks}). To satisfy the causality constraint, this context may only contain values above $\hat z_i$ or in the same row to the left of $\hat z_i$ (gray cells). By using the filter shown in Fig.~\ref{imgc:fig:masks} in the top right for the first layer of a CNN and the filter shown in Fig.~\ref{imgc:fig:masks} in the bottom right for subsequent filters, we can build a 2D-CNN with a $c \times c$ receptive field that forms such a context. We build our 3D-CNN $P$ by generalizing this idea to 3D, where we construct the mask for the filter of the first layer as shown in pseudo-code Algorithm~\ref{imgc:alg:maskmaker}. The mask for the subsequent layers is constructed analoguously by replacing ``$<$'' in line~\ref{imgc:alg:maskmaker:lineLT} with ``$\leq$''. We use filter size $f_W = f_H = f_D = 3$.
+
+With this approach, we obtain a 3D-CNN $P$ which operates on $f_H \times f_W \times f_D$-dimensional blocks. We can use $P$ to encode $\hat z$ by iterating over $\hat z$ in such blocks, exhausting first axis $w$, then axis $h$, and finally axis $d$ (like in Algorithm~\ref{imgc:alg:maskmaker}). For each such block, $P$ yields the probability distribution of the central symbol given the symbols in the block. Due to the construction of the masks, this probability distribution only depends on previously encoded symbols. 
+
+
+\setcounter{algorithm}{-1}
+\begin{algorithm}
+\caption{My algorithm}\label{imgc:euclid}
+\begin{algorithmic}[1]
+    \State $\textit{central\_idx} \gets \ceil{(f_W \cdot f_H \cdot f_D) / 2}$
+    \State $\textit{current\_idx} \gets 1$
+    \State $\textit{mask} \gets f_W \times f_H \times f_D \text{-dimensional matrix of zeros}$
+    \For {$d \in \{1, \dots, f_D\}$}
+        \For {$h \in \{1, \dots, f_H\}$}
+            \For {$w \in \{1, \dots, f_W\}$}
+                \If {$\textit{current\_idx} < \textit{central\_idx}$} \label{imgc:alg:maskmaker:lineLT}
+                    \State $mask(w, h, d) = 1$
+                \Else
+                    \State $mask(w, h, d) = 0$
+                \EndIf
+                \State $\textit{current\_idx} \gets \textit{current\_idx} + 1$
+            \EndFor
+        \EndFor
+    \EndFor
+\end{algorithmic}
+\caption{Constructing 3D Masks}
+\label{imgc:alg:maskmaker}
+\end{algorithm}
+
+
+\end{subappendices} 
+

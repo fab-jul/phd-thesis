@@ -1,0 +1,165 @@
+\documentclass[%
+    % NOTE: This is actually ignored, as page size is set with preamble.
+    a5paper,  
+    footinclude=true,
+    headinclude=true
+fontsize=11pt,
+]{scrbook}
+
+\usepackage{preamble}
+
+\begin{document}
+
+\selectlanguage{american}
+
+\ifthenelse{\boolean{forprint}}{%
+% No front cover
+}{% ELSE
+\includepdf{cover.pdf}%
+\cleardoublepage
+}%
+
+
+\frontmatter
+
+
+%----------------------------------------------------------------------------
+% Titlepage
+
+\newgeometry{left=3cm,right=3cm}
+\input{frontbackmatter/titlepage.tex}
+\restoregeometry
+\input{frontbackmatter/titleback.tex}
+\cleardoublepage
+
+
+%----------------------------------------------------------------------------
+% Abstract
+\cleardoublepage
+\def\dir{frontbackmatter}
+\input{\dir/abstract.tex}
+
+
+%----------------------------------------------------------------------------
+% Publications
+\cleardoublepage
+\def\dir{frontbackmatter}
+\input{\dir/publications.tex}
+
+
+%----------------------------------------------------------------------------
+% Acknowledgements
+\cleardoublepage
+\def\dir{frontbackmatter}
+\input{\dir/acknowledgements.tex}
+
+
+%----------------------------------------------------------------------------
+% Contents
+\cleardoublepage
+\def\dir{frontbackmatter}
+\input{\dir/contents.tex}
+
+
+\mainmatter
+
+
+%----------------------------------------------------------------------------
+% Introduction
+\def\dir{chapters/introduction}
+\input{\dir/introduction.tex}
+
+%----------------------------------------------------------------------------
+% Background: Lossless compression
+\def\dir{chapters/background}
+\input{\dir/background.tex}
+
+\part{Lossless Algorithms} \label{part:one}
+
+\def\dir{chapters/relwork}
+\input{\dir/lossless.tex}
+
+%----------------------------------------------------------------------------
+% L3C
+\def\dir{chapters/l3c}
+\input{\dir/l3c.tex}
+
+%----------------------------------------------------------------------------
+% RC
+\def\dir{chapters/rc}
+\input{\dir/rc.tex}
+
+\part{Lossy Algorithms} \label{part:two}
+
+%----------------------------------------------------------------------------
+% cond
+\def\dir{chapters/imgcomp}
+\input{\dir/imgcomp.tex}
+
+%----------------------------------------------------------------------------
+% HiFiC
+\def\dir{chapters/hific}
+\input{\dir/hific.tex}
+
+
+%----------------------------------------------------------------------------
+% Discussion
+\def\dir{chapters/discussion}
+\input{\dir/discussion.tex}
+
+
+\backmatter
+
+
+%----------------------------------------------------------------------------
+% Bibliography
+\def\dir{frontbackmatter}
+\input{\dir/bibliography.tex}
+
+
+%----------------------------------------------------------------------------
+%% Notation
+%\def\dir{frontbackmatter}
+%\input{\dir/notation.tex}
+
+
+%----------------------------------------------------------------------------
+%% Acronyms
+%\def\dir{frontbackmatter}
+%\input{\dir/acronyms.tex}
+
+
+%----------------------------------------------------------------------------
+% Index
+%\cleardoublepage
+%\def\dir{frontbackmatter}
+%\input{\dir/index.tex}
+
+
+%%----------------------------------------------------------------------------
+%% CV
+%\def\dir{frontbackmatter}
+%\input{\dir/cv.tex}
+
+
+%----------------------------------------------------------------------------
+% Colophon
+%\pagebreak
+%\def\dir{frontbackmatter}
+%\input{\dir/colophon.tex}
+
+%\cleardoublepage
+
+\cleardoubleevenemptypage% or \cleardoubleevenpageusingstyle{empty}
+\thispagestyle{empty}% or \pagestyle{empty}
+
+
+
+\ifthenelse{\boolean{forprint}}{%
+% No back cover
+}{% ELSE
+\includepdf{coverback.pdf}%
+\cleardoublepage
+}%
+
+\end{document}

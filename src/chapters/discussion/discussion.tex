@@ -1,0 +1,97 @@
+\chapter{Discussion}
+\label{sec:discussion}
+
+\section{Summary of Contributions}
+
+In this thesis, we presented approaches for neural image compression. 
+
+In the first part we discussed lossless compression. We showed in
+Chapter~\ref{ch:l3c} how a learned, neural network-based hierarchical
+probabilistic model can outperform classical approaches on a variety of
+datasets. We showed that learning the representations is crucial for this
+performance. We pointed out how lossless compression is related to generative
+modelling and compared our approach to PixelCNN-based methods, which can in
+theory also be used for lossless compression.  In Chapter~\ref{ch:rc}, we
+showed how to leverage BPG to build a conceptually simple compression approach,
+that outperforms the previously mentioned fully end-to-end learned approach. We
+saw how close the reconstructions of BPG are to the input image at high
+bitrates, and how a lot of the signal that remains to be compressed to obtain a
+lossless reconstruction can be characterized as noise.
+
+In the second part we turned to lossy image compression, and showed in
+Chapter~\ref{ch:imgcomp} how an end-to-end trained auto-encoder combined with a
+3D-CNN-based context model can outperform classical approaches in terms of
+MS-SSIM, without relying on specialized architectures or coding schemes.
+Finally, in Chapter~\ref{ch:hific}, we showed how results with high fidelity
+can be obtained by adding a GAN loss to the training objective. The resulting
+method significantly outperforms previous approaches visually, as shown with a
+user study.
+
+\subsection{Open Source Code}
+
+The code for all four mentioned approaches has been open-sourced on github, and
+has seen great interest by the community, accumulating over 400 stars at the
+time of this writing.
+\begin{itemize}[noitemsep,topsep=0pt]
+\item Ch.~\ref{ch:l3c} is available at \href{https://github.com/fab-jul/L3C-PyTorch}{fab-jul/L3C-PyTorch} ($269 \star$).
+\item Ch.~\ref{ch:rc} is available at \href{https://github.com/fab-jul/RC-PyTorch}{fab-jul/RC-PyTorch} ($12 \star$).  % 12
+\item Ch.~\ref{ch:imgcomp} is available at \href{https://github.com/fab-jul/imgcomp-cvpr}{fab-jul/imgcomp-cvpr} ($139 \star$).  % 139
+\item Ch.~\ref{ch:hific} is available as part of \href{https://github.com/tensorflow/compression/tree/master/models/hific}{tensorflow/compression}.  % 408
+\end{itemize}
+
+\section{Limitations and Future Work}
+
+\subsection{Lossless}
+
+From a practical perspective, it seems that domain specific applications are
+the most promising avenue for lossless compression---be it high-quality
+professional photography, or medical imaging---as most end-users seem to care
+more about saving disk space than perfectly reconstructing all the sensor
+noise. In this thesis, we did not explore this (except perhaps for the fact
+that we saw in Ch.~\ref{ch:rc} that the approach performs best on data that is
+distributed like the training set, but this could also be attributed to the
+images being ``simpler''). However, Hoogeboom \etal~\cite{hoogeboom2019integer}
+showed that trained only on medical data, a flow-based approach can outperform
+FLIF. Further exploration in this direction would be practically relevant, as
+medical data in particular seems like a good candidate for lossless
+compression. Although, as a side note, the question arises whether for medical
+imaging the compression algorithm should not be closer to the sensor, instead
+of operating on 8-bit RGB data, as it is unclear whether the sensor noise is
+really what we want to losslessly compress.
+
+To improve performance in general, weak forms of auto-regression were shown to
+be helpful by Cao~\etal~\cite{cao2020lossless}. By using auto-regression in a
+$2{\times}2$ grid in parallel, bitrates can be improved without compromising
+runtime significantly.
+
+\subsection{Lossy}
+
+We believe that generative image compression is a promising avenue to pursue.
+An immediate next step, and a limitation of \name (Ch.~\ref{ch:hific}), is that
+the current network is fairly large, being a wide and deep convolutional neural
+network. We started exploring shallower networks (see
+Fig.~\ref{hific:fig:num_res}), and saw that some compute can be removed without
+compromising FID, but further investigation is needed in order to make these
+approaches run with practically useable run-times.
+
+We saw that our conditional discriminator significantly contributed to the
+sharpness of the outputs, but the conditioning may also have introduced some of
+the undesirable artifacts we see, esp.\ in the Kodak images. The current setup
+is relatively ``crude'' (simple $16{\times}$ nearest-neighbor upsampling), and
+further investigating the conditioning is necessary.
+
+A more high-level next step for generative compression is the investigation and
+development of metrics for assessing perceptual quality of reconstructions. We
+saw in our user study (Fig.~\ref{hific:fig:userstudy}) that none of the metrics
+we evaluated fully corresponded to the ranking obtained with humans. This is a
+significant problem for future research in this area, as it slows down
+evaluation and makes it expensive.
+
+Another direction could be to explore GANs for video compression, potentially
+yielding perceptually more realistic reconstructions for ever lower bitrates.
+Here, an obvious problem will be temporal consistency and error propagation, as
+single frames may have significant deviations from input frames due to the
+generative nature of the approach. Not directly related to compression, but
+related to temporal consistency, Wang~\etal~\cite{wang2018video} showed how
+temporal discriminators can be useful for video-to-video synthesis.
+

@@ -1,0 +1,99 @@
+\chapter{Related Work on Lossless Compression} \label{ch:rel:ll}
+
+\section{Learned Lossless Compression}
+
+The work we present in
+Chapter~\ref{ch:l3c}  was the first work to present a neural
+network based algorithm for lossless image compression that worked at high
+resolutions in practical runtimes.  
+Other work focused on smaller data sets such as MNIST~\cite{lecun2010mnist},
+CIFAR-10~\cite{krizhevsky09learningmultiple},
+and ImageNet32/64~\cite{chrabaszcz2017downsampled},
+where they achieve state-of-the-art results.
+In particular, Townsend~\etal~\cite{townsend2019practical}
+and Kingma~\etal~\cite{kingma2019bit} leverage the ``bits-back
+scheme''~\cite{hinton1993keeping} for lossless compression of an image stream,
+where the overall bitrate of the stream is reduced by leveraging previously
+transmitted information.  Motivated by progress in generative modeling using
+(continuous) flow-based models
+(\eg,~\cite{rezende2015variational,kingma2016improved}),
+Hoogeboom~\etal~\cite{hoogeboom2019integer} propose Integer Discrete Flows
+(IDFs), defining an invertible transformation for discrete data.  
+
+\section{Likelihood-Based Generative Models} \label{rel:sec:llbased}
+
+Essentially all likelihood-based discrete generative models can be used with an
+arithmetic coder for lossless compression. A prominent group of models that
+obtain state-of-the-art performance are variants of the auto-regressive
+PixelRNN/PixelCNN \cite{van2016pixel, van2016conditional}. PixelRNN and
+PixelCNN organize the pixels of the image distribution as a sequence and
+predict the distribution of each pixel conditionally on (all) previous pixels
+using an RNN and a CNN with masked convolutions, respectively. These models
+hence require a number of network evaluations equal to the number of predicted
+sub-pixels\footnote{\label{l3c:fn:subpixel}A RGB ``pixel'' has 3
+``sub-pixels'', one in each channel.} ($3\cdot\! W\!\cdot\! H$).
+PixelCNN++~\cite{Salimans2017pcnnpp} improves on this in various ways,
+including modeling the joint distribution of each pixel, thereby eliminating
+conditioning on previous channels and reducing to $W\!\cdot\! H$ forward
+passes. 
+MS-PixelCNN \cite{reed2017parallel} parallelizes PixelCNN by reducing
+dependencies between blocks of pixels and processing them in parallel with
+shallow PixelCNNs, requiring~$O(\log WH)$ forward passes.
+Kolesnikov \etal~\cite{kolesnikov2017pixelcnn} equip PixelCNN with auxiliary variables
+(grayscale version of the image or RGB pyramid) to encourage modeling of
+high-level features, thereby improving the overall modeling performance.
+Chen~\etal~\cite{chen2017pixelsnail}, and Parmar~\etal~\cite{parmar2018image}
+propose autoregressive models similar to PixelCNN/PixelRNN, but they
+additionally rely on attention mechanisms to increase the receptive field.
+
+\section{Engineered Codecs} \label{rel:sec:engineered}
+
+The well-known \emph{PNG}~\cite{pngurl} operates in
+two stages: first the image is reversibly transformed to a more compressible
+representation with a simple autoregressive filter that updates pixels based on
+surrounding pixels, then it is compressed with the deflate
+algorithm~\cite{deutsch1996deflate}.  \emph{WebP}~\cite{webpurl} uses more
+involved transformations, including the use of entire image fragments to encode
+new pixels and a custom entropy coding scheme.
+\emph{\jpegk}~\cite{jpeg2000taubman} includes a lossless mode where tiles
+are reversibly transformed before the coding step, instead of irreversibly
+removing frequencies.  The current state-of-the-art (non-learned) algorithm is
+\emph{FLIF}~\cite{flif2016}. It relies on powerful preprocessing and a
+sophisticated entropy coding method based on CABAC~\cite{richardson2004h}
+called MANIAC, which grows a dynamic decision tree per channel as an adaptive
+context model during encoding.
+
+\section{Context Models in Lossy Compression} In lossy compression, context
+models have been studied as a way to efficiently losslessly encode the obtained
+image representations. Classical approaches are discussed
+in~\cite{marpe2003context,context2,context4,context3,context1}. Recent learned
+approaches include~\cite{li2017learning, mentzer2018conditional, minnen2018joint},
+where shallow autoregressive models over latents are learned.
+Ballé \etal~\cite{balle2018variational}~present a model somewhat similar to the
+work presented next: Their auto-encoder is similar to our fist scale, and the
+hyper encoder/decoder is similar to our second scale. However, since they train
+for lossy image compression, their auto-encoder predicts RGB pixels directly.
+Also, they predict uncertainties $\sigma$ for the latent instead of a
+mixture of logistics.  Finally, instead of learning a probability distribution
+for their ``hyper-latent'' ($z^{(2)}$ in our formulation), they assume the
+entries to be i.i.d.\ and fit a univariate non-parametric density model,
+whereas in our model, many more stages can be trained and applied
+recursively.
+
+\section{Continuous Likelihood Models for Compression}
+
+The objective of continuous likelihood models, such as VAEs
+\cite{kingma2013auto} and RealNVP \cite{dinh2016density}, where $p(x')$ is a
+continuous distribution, is closely related to its discrete counterpart. In
+particular, by setting $x'=x+u$ where $x$ is the discrete image and $u$ is
+uniform quantization noise, the continuous likelihood of $p(x')$  is a lower
+bound on the likelihood of the discrete $\hat p(x)= \mathbb E_u[p(x')]$
+\cite{theis2016note}. However, there are two challenges for deploying such
+models for compression. First, the discrete likelihood $\hat p(x)$ needs to be
+available (which involves a non-trivial integration step). Additionally, the
+memory complexity of (adaptive) arithmetic coding depends on the size of the
+domain of the variables of the factorization of $\hat p$ (see
+Sec.~\ref{bac:sec:aac} on (adaptive) arithmetic coding). Since the
+domain grows exponentially in the number of pixels in $x$, unless $\hat p$ is
+factorizable, it is not feasible to use it with adaptive arithmetic coding.
+
