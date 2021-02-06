@@ -4,6 +4,7 @@ This repo contains my PhD thesis. The LaTeX is based on [this template](http://p
 all figures use Times and I think Times' math looks somewhat cleaner. I ordered the books at [lulu.com](lulu.com), who offer a nice template to design your cover. See the files in `cover/`.
 
 ### Notes:
+- To build the thesis, use `make` inside `src` (`cd src && make`)
 - Template uses the "Crown Quarto size", that can be used at [lulu.com](lulu.com), see `preamle.sty`. If you need a different size, change this early!
 - There is a `forprint` boolean in preamble.sty that influences how the PDF is 
 created, which can be set there as well.
