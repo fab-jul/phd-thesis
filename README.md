@@ -1,5 +1,5 @@
 <div align="center">
-  <img src='src/cover/cover.jpg' width="50%"/>
+  <img src='src/cover/cover_with_text.jpg' width="50%"/>
 </div>
 
 # PhD Thesis
