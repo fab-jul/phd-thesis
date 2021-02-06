@@ -4,6 +4,8 @@
 
 # PhD Thesis
 
+**TODO**: Add final PDF.
+
 This repo contains my PhD thesis. The LaTeX is based on [this template](http://pletscher.org/blog/2013/03/11/thesis.html), but I modified classicthesis.sty somewhat to have (imo) nicer chapter headings. I also replaced Palatino with Times, as
 all figures use Times and I think Times' math looks somewhat cleaner. I ordered the books at [lulu.com](lulu.com), who offer a nice template to design your cover. See the files in `cover/`.
 
