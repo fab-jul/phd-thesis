@@ -1,10 +1,10 @@
 <div align="center">
+    <a href='https://www.research-collection.ethz.ch/bitstream/handle/20.500.11850/476480/thesis_nightlyfinal_version_pdf.pdf?sequence=1&isAllowed=y'>
   <img src='src/cover/cover_with_text.jpg' width="50%"/>
   <p style='font-size:200%;'>
-  <a href='https://www.research-collection.ethz.ch/bitstream/handle/20.500.11850/476480/thesis_nightlyfinal_version_pdf.pdf?sequence=1&isAllowed=y'>
     PDF Link
-  </a>
   <p>
+    </a>
 </div>
 
 
